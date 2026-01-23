@@ -1,0 +1,8 @@
+# Bot ignore files
+i18n.sh
+LICENSE.txt
+README.md
+pylint.sh
+icon.png
+tests/
+tools/

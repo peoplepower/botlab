@@ -209,7 +209,7 @@ def main():
 
     # Merge bot files from core repository
     merge_redirects(
-        os.path.join(core, botname), base_path, botname, core_directory=core
+        os.path.join(os.getcwd(), botname), base_path, botname, core_directory=core
     )
     merge_botengine(os.path.join(core, "src", "botengine_pytest"), base_path, tests=True)
 

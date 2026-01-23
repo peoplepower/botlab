@@ -1,5 +1,7 @@
 {
   "app": {
+    "type": 0,
+    "core": 0,
     "category": "L",
     "marketing": [
       {
