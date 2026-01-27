@@ -1,0 +1,20 @@
+{
+  "app": {
+    "category": "E",
+    "type": 1,
+    "marketing": [
+      {
+        "lang": "en",
+        "name": "Organization Bot Tests",
+        "author": "David Moss",
+        "copyright": "Copyright 2024 People Power Company",
+        "description": "Organization Tests",
+        "marketingUrl": "http://caredaily.ai",
+        "supportUrl": "http://caredaily.ai/support",
+        "videoUrl": "",
+        "privacyUrl": "",
+        "keywords": ""
+      }
+    ]
+  }
+}

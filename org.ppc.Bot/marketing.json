@@ -1,0 +1,33 @@
+{
+  "app": {
+    # Categories:
+    # * B = Buildings
+    # * C = Care
+    # * E = Energy
+    # * H = Health
+    # * I = Industrial
+    # * L = Lifestyle
+    # * S = Security
+    # * W = Wellness
+    "category": "L",
+
+    # Allow this bot to be run by an organization
+    "type": 1,
+
+    # Marketing information
+    "marketing": [
+      {
+        "lang": "en",
+        "name": "org.ppc.Bot",
+        "author": "David Moss",
+        "copyright": "Copyright 2024 People Power Company",
+        "description": "Foundational Bot for Organizations",
+        "marketingUrl": "http://peoplepowerco.com",
+        "supportUrl": "",
+        "videoUrl": "",
+        "privacyUrl": "",
+        "keywords": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  # This bot does not extend the code base of any other bots
+  "extends": "org.ppc.Bot",
+
+  # Share microservices across multiple bots by copying the target end-directory into the local /intelligence directory
+  "microservices": [
+    "org.ppc.Microservices/intelligence/organization_settings",
+    "org.ppc.Microservices/intelligence/billing_per_sub"
+  ],
+
+  # Safely delete these microservice packages from the service, without resetting live bot instances
+  # Double check that the microservices listed here do not appear in the list of 'microservices' above.
+  "safe_delete_microservices": [
+  ]
+
+}
