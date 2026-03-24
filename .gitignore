@@ -20,7 +20,7 @@ TestHarness/data_*
 *.mp4
 *.tar
 .precommit*
-.bot*
+.bot_*
 .edu*
 *.user
 *.admin
