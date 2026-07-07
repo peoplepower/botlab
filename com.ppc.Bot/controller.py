@@ -603,21 +603,27 @@ class Controller:
         location_id,
         user_id,
         role,
+        previous_role,
         category,
-        location_access,
         previous_category,
+        location_access,
         previous_location_access,
+        residency,
+        previous_residency,
     ):
         """
         A user changed roles
         :param botengine: BotEngine environment
         :param location_id: Location ID
-        :param user_id: User ID that changed roles
-        :param role: Application-layer agreed upon role integer which may auto-configure location_access and alert category
-        :param category: User's current alert/communications category (1=resident; 2=supporter)
-        :param location_access: User's current access to the location
+        :param user_id: User ID that changed
+        :param role: ROLE_TYPE_* Application-layer agreed upon role integer which may auto-configure location_access and alert category
+        :param previous_role: User's previous role, if any
+        :param category: ALERT_CATEGORY_* User's current alert/communications category (1=resident; 2=supporter)
         :param previous_category: User's previous category, if any
+        :param location_access: LOCATION_ACCESS_* User's current access to the location
         :param previous_location_access: User's previous access to the location, if any
+        :param residency: RESIDENCY_* User's current residency status
+        :param previous_residency: User's previous residency status, if any
         :return:
         """
         if location_id not in self.locations:
@@ -629,12 +635,16 @@ class Controller:
 
         self.locations[location_id].user_role_updated(
             botengine,
+            location_id,
             user_id,
             role,
+            previous_role,
             category,
-            location_access,
             previous_category,
+            location_access,
             previous_location_access,
+            residency,
+            previous_residency,
         )
 
     def call_center_updated(self, botengine, location_id, user_id, status):
@@ -723,10 +733,11 @@ class Controller:
             "<sync_messages()"
         )
 
-    def sync_survey(self, botengine, survey):
+    def sync_survey(self, botengine, user_id, survey):
         """
         Synchronize a survey answer
         :param botengine: BotEngine environment
+        :param user_id: User ID that answered the survey
         :param survey: Survey data dictionary containing locationId, userId, and survey JSON
         """
         botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
@@ -742,7 +753,7 @@ class Controller:
             return
         
         # Sync survey to the appropriate location
-        self.locations[location_id].survey_answered(botengine, survey)
+        self.locations[location_id].survey_answered(botengine, user_id, survey)
         botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
             "<sync_survey()"
         )

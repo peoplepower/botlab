@@ -3,9 +3,13 @@
     "triggerParameters": [
       "fallStatus",
       "motionStatus",
+      "occupancy",
+      "bedStatus",
+      "sleepStatus",
       "degC",
       "relativeHumidity",
-      "voc"
+      "voc",
+      "messageId"
     ]
   }
 }

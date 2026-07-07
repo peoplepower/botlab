@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: English (BotLab)\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-07 14:03-0800\n"
+"POT-Creation-Date: 2026-04-16 12:07-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -13,7 +13,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.11.0\n"
+"Generated-By: Babel 2.15.0\n"
 
 #: devices/thermostat/thermostat.py:281 devices/thermostat/thermostat.py:500
 #, read-only
@@ -179,8 +179,9 @@ msgstr "Apple Proxy"
 
 #. Device type name
 #: devices/appliance/appliance.py:40
+#, read-only
 msgid "Appliance"
-msgstr ""
+msgstr "Appliance"
 
 #. Abstract device type name, doesn't show up in end user documentation
 #: devices/button/button_multi.py:77 devices/button/button_one_shot.py:74
@@ -252,9 +253,10 @@ msgid "Centralite Pearl Thermostat"
 msgstr "Centralite Pearl Thermostat"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/button/comarch/button.py:192
+#: devices/button/comarch/button.py:191
+#, read-only
 msgid "Comarch Wearable"
-msgstr ""
+msgstr "Comarch Wearable"
 
 #: devices/gateway/gateway_develco_squidlink.py:342
 #, read-only
@@ -266,13 +268,13 @@ msgstr "Connecting"
 msgid "Cooling set point adjusted"
 msgstr "Cooling set point adjusted"
 
-#: signals/dashboard.py:504
+#: signals/dashboard.py:644
 #, read-only
 msgid "DISABLED"
 msgstr "DISABLED"
 
 #. Super abstract device type name
-#: devices/device.py:402
+#: devices/device.py:415
 #, read-only
 msgid "Device"
 msgstr "Device"
@@ -284,8 +286,9 @@ msgstr "Disconnected"
 
 #. Device type name
 #: devices/display/display.py:40
+#, read-only
 msgid "Display"
-msgstr ""
+msgstr "Display"
 
 #. Device type name
 #: devices/thermostat/thermostat_ecobee.py:83
@@ -316,6 +319,12 @@ msgstr "GE In-Wall Switch"
 #, read-only
 msgid "Google Health"
 msgstr "Google Health"
+
+#. Device type name
+#: devices/assessment/grip_able/grip_able.py:73
+#, read-only
+msgid "Grip-Able"
+msgstr "Grip-Able"
 
 #. Device type name
 #: devices/health/health.py:99
@@ -357,6 +366,12 @@ msgstr "In-Wall Outlet"
 msgid "Incoming Call"
 msgstr "Incoming Call"
 
+#. Abstract device type name, doesn't show up in end user documentation
+#: devices/button/intrex/button.py:48
+#, read-only
+msgid "Intrex Community Wearable"
+msgstr "Intrex Community Wearable"
+
 #. Device type name
 #: devices/keypad/keypad.py:68 devices/keypad/keypad_develco.py:107
 #, read-only
@@ -387,6 +402,11 @@ msgstr "Leviton Decora In-Wall Switch"
 msgid "Light"
 msgstr "Light"
 
+#: locations/location.py:1970
+#, read-only
+msgid "Location {}"
+msgstr "Location {}"
+
 #. Abstract device type name, doesn't show up in end user documentation
 #: devices/lock/lock.py:79
 #, read-only
@@ -399,7 +419,7 @@ msgstr "Lock"
 msgid "M-Series Smart Home Center"
 msgstr "M-Series Smart Home Center"
 
-#: devices/button/button_mpers.py:79
+#: devices/button/button_mpers.py:85
 #, read-only
 msgid "Mobile PERS Button"
 msgstr "Mobile PERS Button"
@@ -416,24 +436,26 @@ msgid "NOW"
 msgstr "NOW"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/radar/nobi/radar.py:86
+#: devices/radar/nobi/radar.py:87
+#, read-only
 msgid "Nobi"
-msgstr ""
+msgstr "Nobi"
 
 #: devices/gateway/gateway_develco_squidlink.py:346
 #, read-only
 msgid "Not Found"
 msgstr "Not Found"
 
-#: signals/dashboard.py:550
+#: signals/dashboard.py:690
 #, read-only
 msgid "Okay, resolving the notification..."
 msgstr "Okay, resolving the notification..."
 
 #. Device type name
 #: devices/display/onscreen/display_onscreen.py:59
+#, read-only
 msgid "Onscreen"
-msgstr ""
+msgstr "Onscreen"
 
 #. Device type name
 #: devices/pictureframe/pictureframe_peoplepower.py:122
@@ -459,7 +481,7 @@ msgstr "Pressure Pad"
 msgid "Proxy"
 msgstr "Proxy"
 
-#: signals/dashboard.py:502
+#: signals/dashboard.py:642
 #, read-only
 msgid "RUNNING"
 msgstr "RUNNING"
@@ -470,7 +492,7 @@ msgstr "RUNNING"
 msgid "Radar"
 msgstr "Radar"
 
-#: signals/dashboard.py:549
+#: signals/dashboard.py:689
 #, read-only
 msgid "Resolve"
 msgstr "Resolve"
@@ -480,7 +502,7 @@ msgstr "Resolve"
 msgid "Ringing"
 msgstr "Ringing"
 
-#: signals/dashboard.py:16
+#: signals/dashboard.py:17
 #, read-only
 msgid "SERVICES"
 msgstr "SERVICES"
@@ -526,9 +548,10 @@ msgid "Siren"
 msgstr "Siren"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/bed/axend/bed.py:41
+#: devices/bed/axend/bed.py:50
+#, read-only
 msgid "Sleep Signal"
-msgstr ""
+msgstr "Sleep Signal"
 
 #. Device type name - Smart Breaker
 #: devices/smartplug/smartbreaker.py:104
@@ -572,6 +595,11 @@ msgstr "Smart Home Center"
 msgid "Smart Plug"
 msgstr "Smart Plug"
 
+#: signals/dashboard.py:14
+#, read-only
+msgid "TODAY"
+msgstr "TODAY"
+
 #. Device type name
 #: devices/environment/temperature.py:34
 #, read-only
@@ -601,12 +629,12 @@ msgstr "Touch Sensor"
 msgid "Touchpad"
 msgstr "Touchpad"
 
-#: signals/dashboard.py:547
+#: signals/dashboard.py:687
 #, read-only
 msgid "UPDATE STATUS >"
 msgstr "UPDATE STATUS >"
 
-#: signals/dashboard.py:548
+#: signals/dashboard.py:688
 #, read-only
 msgid "Update Status"
 msgstr "Update Status"
@@ -902,8 +930,9 @@ msgstr "hvac"
 
 #. Device type name
 #: devices/appliance/appliance_iguard.py:93
+#, read-only
 msgid "iGuard"
-msgstr ""
+msgstr "iGuard"
 
 #. Device type name
 #: devices/camera/camera_peoplepower_presenceios.py:23

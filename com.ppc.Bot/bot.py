@@ -559,21 +559,19 @@ def trigger_event(botengine, controller, trigger_type, triggers):
             execution_time = botengine.get_timestamp()
             min_countdown_threshold = botengine.get_system_property("ppc.bot.minCountdownThreshold")
             botengine.get_logger(f"{'botengine'}").debug("|trigger_Event() min_countdown_threshold={}".format(min_countdown_threshold))
-            botengine.get_logger(f"{__name__}").info("|trigger_event() Checking timers")
-            botengine.get_logger(f"{__name__}").info(
-                "|trigger_event() " + Color.PURPLE + "TIMER STACK: " + Color.END
-            )
+            
+            # Summarize timer stack in a single line
             import time
-            for t in saved_timers:
-                system_time = botengine.get_system_time_ms()
-                botengine.get_logger(f"{__name__}").info(
-                    "|trigger_event() " + Color.PURPLE + "t{}\t{}".format(system_time - t[0], t) + Color.END
-                )
+            system_time = botengine.get_system_time_ms()
+            next_timer_ms = saved_timers[0][0] if saved_timers else None
+            next_timer_delta = (next_timer_ms - system_time) if next_timer_ms else None
+            botengine.get_logger(f"{__name__}").info(
+                "|trigger_event() " + Color.PURPLE + 
+                f"Checking {len(saved_timers)} timer(s); next fires in {next_timer_delta}ms" +
+                Color.END
+            )
 
             # Double check our timers first, before giving up and letting the bot engine execute trigger type 64.
-            botengine.get_logger(f"{__name__}").info(
-                "|trigger_event() " + Color.PURPLE + "timestamp={} timer={}".format(botengine.get_timestamp(), timer) + Color.END
-            )
             while True:
                 saved_timers = botengine.load_variable(TIMERS_VARIABLE_NAME)
                 if saved_timers is None:
@@ -588,11 +586,8 @@ def trigger_event(botengine, controller, trigger_type, triggers):
                     break
                 focused_timer = saved_timers[0]
                 t = focused_timer[0]
-                botengine.get_logger(f"{__name__}").info(
-                    "|trigger_event() "
-                    + Color.YELLOW
-                    + "Checking timer: {} at time {}".format(focused_timer, t)
-                    + Color.END
+                botengine.get_logger(f"{__name__}").debug(
+                    "|trigger_event() Checking timer at time {}".format(t)
                 )
                 if t == MAXINT:
                     botengine.get_logger(f"{__name__}").warning(
@@ -611,11 +606,8 @@ def trigger_event(botengine, controller, trigger_type, triggers):
                     t - time_variance > system_time 
                     or t - time_variance > timer
                 ):
-                    botengine.get_logger(f"{__name__}").info(
-                        "|trigger_event() "
-                        + Color.YELLOW
-                        + "Next timer not ready for execution yet."
-                        + Color.END
+                    botengine.get_logger(f"{__name__}").debug(
+                        "|trigger_event() Next timer not ready for execution yet."
                     )
                     break
                 # Pop the timer and execute it
@@ -709,8 +701,9 @@ def trigger_event(botengine, controller, trigger_type, triggers):
         )
 
         survey = botengine.get_survey_block()
+        user_id = botengine.get_user_id_from_inputs()
         if survey is not None:
-            controller.sync_survey(botengine, survey)
+            controller.sync_survey(botengine, user_id, survey)
         pass
 
     # GOAL / SCENARIO CHANGES
@@ -765,11 +758,6 @@ def trigger_event(botengine, controller, trigger_type, triggers):
         botengine.get_logger(f"{__name__}").info(
             "|trigger_event() Changed location configuration"
         )
-        category = None
-        previous_category = None
-        location_access = None
-        previous_location_access = None
-        user_id = None
         location_id = botengine.get_location_id()
         users = botengine.get_users_block()
         call_center = botengine.get_callcenter_block()
@@ -783,34 +771,30 @@ def trigger_event(botengine, controller, trigger_type, triggers):
                 botengine.get_logger(f"{__name__}").info(
                     "|trigger_event() > user={}".format(user)
                 )
-                if "category" in user:
-                    category = user["category"]
-
-                if "prevCategory" in user:
-                    previous_category = user["prevCategory"]
-
-                if "locationAccess" in user:
-                    location_access = user["locationAccess"]
-
-                if "prevLocationAccess" in user:
-                    previous_location_access = user["prevLocationAccess"]
-
-                if "userId" in user:
-                    user_id = user["userId"]
-
-                role = None
-                if "role" in user:
-                    role = user["role"]
+                user_id = user["userId"]
+                category = user.get("category",0)
+                previous_category = user.get("prevCategory",0)
+                location_access = user.get("locationAccess",0)
+                previous_location_access = user.get("prevLocationAccess",0)
+                location_access = user.get("residency",0)
+                previous_location_access = user.get("prevResidency",0)
+                role = user.get("role",0)
+                previous_role = user.get("prevRole",0)
+                residency = user.get("residency",0)
+                previous_residency = user.get("prevResidency",0)
 
                 controller.user_role_updated(
                     botengine,
                     location_id,
                     user_id,
                     role,
+                    previous_role,
                     category,
-                    location_access,
                     previous_category,
+                    location_access,
                     previous_location_access,
+                    residency,
+                    previous_residency,
                 )
 
         if call_center is not None:
@@ -874,19 +858,11 @@ def trigger_event(botengine, controller, trigger_type, triggers):
                 )
 
         else:
-            imported = False
-
             try:
                 import lz4.block
 
-                imported = True
-            except ImportError:
-                botengine.get_logger(f"{__name__}").error(
-                    "|trigger_event() Attempted to import 'lz4' to uncompress the data request response, but lz4 is not available. Please add 'lz4' to 'pip_install_remotely' in your structure.json."
-                )
-                pass
+                data_events = {}
 
-            if imported:
                 for d in data:
                     reference = None
                     if "key" in d:
@@ -894,32 +870,73 @@ def trigger_event(botengine, controller, trigger_type, triggers):
 
                     if reference not in events:
                         events[reference] = {}
-
-                    botengine.get_logger(f"{__name__}").info(
-                        "|trigger_event() Downloading {} ({} bytes)...".format(
-                            d["deviceId"], d["dataLength"]
+                    data_request_type = d["type"]
+                    if data_request_type in [
+                        botengine.DATA_REQUEST_TYPE_PARAMETERS,
+                        botengine.DATA_REQUEST_TYPE_DEVICE_ACTIVITIES,
+                        botengine.DATA_REQUEST_TYPE_DEVICE_ALERTS_HISTORY,
+                    ]:
+                        botengine.get_logger(f"{__name__}").info(
+                            "|trigger_event() Downloading {} ({} bytes)...".format(
+                                d["deviceId"], d["dataLength"]
+                            )
                         )
-                    )
-                    r = botengine.send_data_request(d["url"], timeout=60, stream=True)
-                    events[reference][d["deviceId"]] = lz4.block.decompress(
-                        r.content, uncompressed_size=d["dataLength"]
-                    )
-
-                data_events = {}
-
-                for reference, value in events.items():
-                    if reference not in data_events:
-                        data_events[reference] = {}
-
-                    for device_id, decompressed_content in value.items():
-                        data_events[reference][controller.get_device(botengine, device_id)] = (
-                            decompressed_content
+                        r = botengine.send_data_request(d["url"], timeout=60, stream=True)
+                        events[reference][d["deviceId"]] = lz4.block.decompress(
+                            r.content, uncompressed_size=d["dataLength"]
                         )
+
+
+                        for reference, value in events.items():
+                            if reference not in data_events:
+                                data_events[reference] = {}
+
+                            for device_id, decompressed_content in value.items():
+                                data_events[reference][controller.get_device(botengine, device_id)] = (
+                                    decompressed_content
+                                )
+                    elif data_request_type in [
+                        botengine.DATA_REQUEST_TYPE_MODES,
+                        botengine.DATA_REQUEST_TYPE_NARRATIVES,
+                        botengine.DATA_REQUEST_TYPE_DATA_STREAMS_HISTORY,
+                        botengine.DATA_REQUEST_TYPE_ENERGY_USAGE,
+                        botengine.DATA_REQUEST_TYPE_LOCATION_TIME_STATES,
+                    ]:
+                        botengine.get_logger(f"{__name__}").info(
+                            "|trigger_event() Downloading ({} bytes)...".format(
+                                d["dataLength"]
+                            )
+                        )
+
+                        r = botengine.send_data_request(d["url"], timeout=60, stream=True)
+                        events[reference] = lz4.block.decompress(
+                            r.content, uncompressed_size=d["dataLength"]
+                        )
+                        botengine.get_logger(f"{__name__}").info(
+                            "|trigger_event() Data request completed. reference={}, data={}".format(
+                                reference, events[reference]
+                            )
+                        )
+                        for reference, value in events.items():
+                            data_events[reference] = value
+                    else:
+                        raise ValueError("Unknown data request type: {}; data={}".format(data_request_type, d))
 
                 for reference in data_events:
                     controller.async_data_request_ready(
                         botengine, reference, data_events[reference]
                     )
+            except ImportError as e:
+                botengine.get_logger(f"{__name__}").error(
+                    "|trigger_event() Error: {}".format(e)
+                )
+                pass
+            except Exception as e:
+                import traceback
+                botengine.get_logger(f"{__name__}").error(
+                    "|trigger_event() Error processing data request: {}; traceback={}".format(e, traceback.format_exc())
+                )
+                pass
 
     # MESSAGES
     if trigger_type & botengine.TRIGGER_MESSAGES != 0:

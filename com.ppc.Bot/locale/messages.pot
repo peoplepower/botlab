@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-01-07 14:03-0800\n"
+"POT-Creation-Date: 2026-04-16 12:07-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.11.0\n"
+"Generated-By: Babel 2.15.0\n"
 
 #: devices/thermostat/thermostat.py:281 devices/thermostat/thermostat.py:500
 msgid "'{}' now set to {}"
@@ -210,7 +210,7 @@ msgid "Centralite Pearl Thermostat"
 msgstr ""
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/button/comarch/button.py:192
+#: devices/button/comarch/button.py:191
 msgid "Comarch Wearable"
 msgstr ""
 
@@ -222,12 +222,12 @@ msgstr ""
 msgid "Cooling set point adjusted"
 msgstr ""
 
-#: signals/dashboard.py:504
+#: signals/dashboard.py:644
 msgid "DISABLED"
 msgstr ""
 
 #. Super abstract device type name
-#: devices/device.py:402
+#: devices/device.py:415
 msgid "Device"
 msgstr ""
 
@@ -266,6 +266,11 @@ msgid "Google Health"
 msgstr ""
 
 #. Device type name
+#: devices/assessment/grip_able/grip_able.py:73
+msgid "Grip-Able"
+msgstr ""
+
+#. Device type name
 #: devices/health/health.py:99
 msgid "Health"
 msgstr ""
@@ -298,6 +303,11 @@ msgstr ""
 msgid "Incoming Call"
 msgstr ""
 
+#. Abstract device type name, doesn't show up in end user documentation
+#: devices/button/intrex/button.py:48
+msgid "Intrex Community Wearable"
+msgstr ""
+
 #. Device type name
 #: devices/keypad/keypad.py:68 devices/keypad/keypad_develco.py:107
 msgid "Keypad"
@@ -323,6 +333,10 @@ msgstr ""
 msgid "Light"
 msgstr ""
 
+#: locations/location.py:1970
+msgid "Location {}"
+msgstr ""
+
 #. Abstract device type name, doesn't show up in end user documentation
 #: devices/lock/lock.py:79
 msgid "Lock"
@@ -333,7 +347,7 @@ msgstr ""
 msgid "M-Series Smart Home Center"
 msgstr ""
 
-#: devices/button/button_mpers.py:79
+#: devices/button/button_mpers.py:85
 msgid "Mobile PERS Button"
 msgstr ""
 
@@ -347,7 +361,7 @@ msgid "NOW"
 msgstr ""
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/radar/nobi/radar.py:86
+#: devices/radar/nobi/radar.py:87
 msgid "Nobi"
 msgstr ""
 
@@ -355,7 +369,7 @@ msgstr ""
 msgid "Not Found"
 msgstr ""
 
-#: signals/dashboard.py:550
+#: signals/dashboard.py:690
 msgid "Okay, resolving the notification..."
 msgstr ""
 
@@ -384,7 +398,7 @@ msgstr ""
 msgid "Proxy"
 msgstr ""
 
-#: signals/dashboard.py:502
+#: signals/dashboard.py:642
 msgid "RUNNING"
 msgstr ""
 
@@ -393,7 +407,7 @@ msgstr ""
 msgid "Radar"
 msgstr ""
 
-#: signals/dashboard.py:549
+#: signals/dashboard.py:689
 msgid "Resolve"
 msgstr ""
 
@@ -401,7 +415,7 @@ msgstr ""
 msgid "Ringing"
 msgstr ""
 
-#: signals/dashboard.py:16
+#: signals/dashboard.py:17
 msgid "SERVICES"
 msgstr ""
 
@@ -439,7 +453,7 @@ msgid "Siren"
 msgstr ""
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/bed/axend/bed.py:41
+#: devices/bed/axend/bed.py:50
 msgid "Sleep Signal"
 msgstr ""
 
@@ -480,6 +494,10 @@ msgstr ""
 msgid "Smart Plug"
 msgstr ""
 
+#: signals/dashboard.py:14
+msgid "TODAY"
+msgstr ""
+
 #. Device type name
 #: devices/environment/temperature.py:34
 msgid "Temperature Sensor"
@@ -504,11 +522,11 @@ msgstr ""
 msgid "Touchpad"
 msgstr ""
 
-#: signals/dashboard.py:547
+#: signals/dashboard.py:687
 msgid "UPDATE STATUS >"
 msgstr ""
 
-#: signals/dashboard.py:548
+#: signals/dashboard.py:688
 msgid "Update Status"
 msgstr ""
 

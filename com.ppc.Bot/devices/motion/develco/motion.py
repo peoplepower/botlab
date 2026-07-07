@@ -160,3 +160,18 @@ class DevelcoMotionDevice(MotionDevice):
             )
 
         return alarm_status_updated or motion_status_updated
+    
+    def is_occupancy_detected(self, botengine):
+        """
+        Check if occupancy is detected. This is an indicator if the device has additional logic to determine occupancy beyond just motion.
+        :param botengine: BotEngine environment
+        :return: True if occupancy is detected, False otherwise
+        """
+        alarm_status = False
+        if DevelcoMotionDevice.MEASUREMENT_NAME_ALARM in self.measurements:
+            if len(self.measurements[DevelcoMotionDevice.MEASUREMENT_NAME_ALARM]) > 0:
+                if (
+                    self.measurements[DevelcoMotionDevice.MEASUREMENT_NAME_ALARM][0][0]
+                ):
+                    alarm_status = True
+        return alarm_status

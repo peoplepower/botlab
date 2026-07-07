@@ -167,6 +167,24 @@ class BedDevice(Device):
                 return True
         return False
 
+    def did_apply_pressure(self, botengine=None):
+        """
+        Did pressure get applied to the bed/chair?
+        This is an alias for did_get_in_bed() for backward compatibility with pressure pad implementations.
+        :param botengine: BotEngine environment
+        :return: True if pressure was just applied (person got in bed)
+        """
+        return self.did_get_in_bed(botengine)
+
+    def did_release_pressure(self, botengine=None):
+        """
+        Did pressure get released from the bed/chair?
+        This is an alias for did_get_out_of_bed() for backward compatibility with pressure pad implementations.
+        :param botengine: BotEngine environment
+        :return: True if pressure was just released (person got out of bed)
+        """
+        return self.did_get_out_of_bed(botengine)
+
     def last_out_of_bed_timestamp_ms(self, botengine):
         """
         Get the last timestamp when this BedDevice reported being out of bed (bed status = 0).

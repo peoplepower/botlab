@@ -6,7 +6,8 @@
       "fallStatus",
       "latitude",
       "longitude",
-      "steps"
+      "steps",
+      "location"
     ]
   }
 }

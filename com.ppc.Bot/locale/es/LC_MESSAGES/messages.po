@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-01-07 14:03-0800\n"
-"PO-Revision-Date: 2025-10-17 18:14+0000\n"
+"POT-Creation-Date: 2026-04-16 12:07-0700\n"
+"PO-Revision-Date: 2026-03-02 17:46+0000\n"
 "Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language: es\n"
 "Language-Team: Spanish <http://weblate-"
@@ -17,7 +17,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.11.0\n"
+"Generated-By: Babel 2.15.0\n"
 
 #: devices/thermostat/thermostat.py:281 devices/thermostat/thermostat.py:500
 msgid "'{}' now set to {}"
@@ -156,7 +156,7 @@ msgstr "Proxy de Apple"
 #. Device type name
 #: devices/appliance/appliance.py:40
 msgid "Appliance"
-msgstr ""
+msgstr "Aparato"
 
 #. Abstract device type name, doesn't show up in end user documentation
 #: devices/button/button_multi.py:77 devices/button/button_one_shot.py:74
@@ -216,9 +216,9 @@ msgid "Centralite Pearl Thermostat"
 msgstr "Termostato Centralite Pearl"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/button/comarch/button.py:192
+#: devices/button/comarch/button.py:191
 msgid "Comarch Wearable"
-msgstr ""
+msgstr "Comarch Wearable"
 
 #: devices/gateway/gateway_develco_squidlink.py:342
 msgid "Connecting"
@@ -228,12 +228,12 @@ msgstr "Conectando"
 msgid "Cooling set point adjusted"
 msgstr "Punto de ajuste de refrigeración ajustado"
 
-#: signals/dashboard.py:504
+#: signals/dashboard.py:644
 msgid "DISABLED"
 msgstr "DISCAPACITADO"
 
 #. Super abstract device type name
-#: devices/device.py:402
+#: devices/device.py:415
 msgid "Device"
 msgstr "Dispositivo"
 
@@ -244,7 +244,7 @@ msgstr "Desconectado"
 #. Device type name
 #: devices/display/display.py:40
 msgid "Display"
-msgstr ""
+msgstr "Mostrar"
 
 #. Device type name
 #: devices/thermostat/thermostat_ecobee.py:83
@@ -270,6 +270,11 @@ msgstr "Interruptor de pared GE"
 #: devices/health/health_google.py:44
 msgid "Google Health"
 msgstr "Google Salud"
+
+#. Device type name
+#: devices/assessment/grip_able/grip_able.py:73
+msgid "Grip-Able"
+msgstr ""
 
 #. Device type name
 #: devices/health/health.py:99
@@ -304,6 +309,11 @@ msgstr "Toma de corriente en la pared"
 msgid "Incoming Call"
 msgstr "Llamada entrante"
 
+#. Abstract device type name, doesn't show up in end user documentation
+#: devices/button/intrex/button.py:48
+msgid "Intrex Community Wearable"
+msgstr "Dispositivo portátil comunitario Intrex"
+
 #. Device type name
 #: devices/keypad/keypad.py:68 devices/keypad/keypad_develco.py:107
 msgid "Keypad"
@@ -329,6 +339,10 @@ msgstr "Interruptor de pared Decora de Leviton"
 msgid "Light"
 msgstr "Luz"
 
+#: locations/location.py:1970
+msgid "Location {}"
+msgstr ""
+
 #. Abstract device type name, doesn't show up in end user documentation
 #: devices/lock/lock.py:79
 msgid "Lock"
@@ -339,7 +353,7 @@ msgstr "Bloqueo"
 msgid "M-Series Smart Home Center"
 msgstr "Centro para el hogar inteligente de la serie M"
 
-#: devices/button/button_mpers.py:79
+#: devices/button/button_mpers.py:85
 msgid "Mobile PERS Button"
 msgstr "Botón PERS móvil"
 
@@ -353,22 +367,22 @@ msgid "NOW"
 msgstr "AHORA"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/radar/nobi/radar.py:86
+#: devices/radar/nobi/radar.py:87
 msgid "Nobi"
-msgstr ""
+msgstr "Nobi"
 
 #: devices/gateway/gateway_develco_squidlink.py:346
 msgid "Not Found"
 msgstr "Extraviado"
 
-#: signals/dashboard.py:550
+#: signals/dashboard.py:690
 msgid "Okay, resolving the notification..."
 msgstr "De acuerdo, resolviendo la notificación ..."
 
 #. Device type name
 #: devices/display/onscreen/display_onscreen.py:59
 msgid "Onscreen"
-msgstr ""
+msgstr "En pantalla"
 
 #. Device type name
 #: devices/pictureframe/pictureframe_peoplepower.py:122
@@ -390,7 +404,7 @@ msgstr "Almohadilla de presión"
 msgid "Proxy"
 msgstr "Proxy"
 
-#: signals/dashboard.py:502
+#: signals/dashboard.py:642
 msgid "RUNNING"
 msgstr "CORRIENDO"
 
@@ -399,7 +413,7 @@ msgstr "CORRIENDO"
 msgid "Radar"
 msgstr "Radar"
 
-#: signals/dashboard.py:549
+#: signals/dashboard.py:689
 msgid "Resolve"
 msgstr "Resolver"
 
@@ -407,7 +421,7 @@ msgstr "Resolver"
 msgid "Ringing"
 msgstr "Zumbido"
 
-#: signals/dashboard.py:16
+#: signals/dashboard.py:17
 msgid "SERVICES"
 msgstr "SERVICIOS"
 
@@ -445,9 +459,9 @@ msgid "Siren"
 msgstr "Sirena"
 
 #. Abstract device type name, doesn't show up in end user documentation
-#: devices/bed/axend/bed.py:41
+#: devices/bed/axend/bed.py:50
 msgid "Sleep Signal"
-msgstr ""
+msgstr "Señal de sueño"
 
 #. Device type name - Smart Breaker
 #: devices/smartplug/smartbreaker.py:104
@@ -486,6 +500,10 @@ msgstr "Smart Home Center"
 msgid "Smart Plug"
 msgstr "Enchufe inteligente"
 
+#: signals/dashboard.py:14
+msgid "TODAY"
+msgstr ""
+
 #. Device type name
 #: devices/environment/temperature.py:34
 msgid "Temperature Sensor"
@@ -510,11 +528,11 @@ msgstr "Sensor tactil"
 msgid "Touchpad"
 msgstr "Panel táctil"
 
-#: signals/dashboard.py:547
+#: signals/dashboard.py:687
 msgid "UPDATE STATUS >"
 msgstr "ACTUALIZAR ESTADO >"
 
-#: signals/dashboard.py:548
+#: signals/dashboard.py:688
 msgid "Update Status"
 msgstr "Estado de actualización"
 
@@ -768,7 +786,7 @@ msgstr "hvac"
 #. Device type name
 #: devices/appliance/appliance_iguard.py:93
 msgid "iGuard"
-msgstr ""
+msgstr "iGuard"
 
 #. Device type name
 #: devices/camera/camera_peoplepower_presenceios.py:23

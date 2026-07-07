@@ -112,9 +112,10 @@ PUSH_SOUND_WHOOPS = "whoops.wav"
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_MANAGER = 1
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_TECHNICIAN = 2
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_BILLING = 3
-ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESEARCHER = 4
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_CONNECTIONS = 4
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_PROVIDER = 5
-ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESPONDER = 6
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_REPORTS = 6
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESPONDER = 7
 
 # Default name for AI Chat Assistant (common for all locales)
 DEFAULT_CHAT_ASSISTANT_NAME = "Arti"
@@ -525,7 +526,7 @@ def get_admin_url(botengine):
     return url
 
 
-def get_admin_url_for_location(botengine):
+def get_admin_url_for_location(botengine, location_id=None):
     """
     Attempt to return the URL of the command center for this home.
 
@@ -543,11 +544,16 @@ def get_admin_url_for_location(botengine):
             "sboxall.peoplepowerco.com": "https://app-sbox.caredaily.ai"
         }
 
+    :param location_id: Optional location ID to link to. Defaults to this bot's location, which is
+        useful for organization-level bots that need to link to specific child locations.
     :return: URL to this home in the appropriate command center
     """
     # The domain.COMMAND_CENTER_URLS (or your organization property) should be formatted like this: https://console.peoplepowerfamily.com
     import bundle
     import properties
+
+    if location_id is None:
+        location_id = botengine.get_location_id()
 
     url = None
     if properties.get_property(botengine, "COMMAND_CENTER_URLS") is not None:
@@ -566,11 +572,11 @@ def get_admin_url_for_location(botengine):
     # Check if the url contains caredaily
     if any([domain in url for domain in ["console", "maestro"]]):
         # Return the url for Maestro
-        return "{}/#!/main/locations/edit/{}".format(url, botengine.get_location_id())
+        return "{}/#!/main/locations/edit/{}".format(url, location_id)
 
     # Return the url for CareDailyInsights
     return "{}/org/{}/locations/{}/dashboard".format(
-        url, botengine.get_organization_id(), botengine.get_location_id()
+        url, botengine.get_organization_id(), location_id
     )
 
 
@@ -622,7 +628,11 @@ def get_organization_user_notification_categories(
         )
 
     categories = [ORGANIZATION_USER_NOTIFICATION_CATEGORY_MANAGER]
-    if before_hour is not None and after_hour is not None:
+    if notify_responders:
+        botengine.get_logger(f"{__name__}").info(
+            "utilities: Do not contact technicians for care events"
+        )
+    elif before_hour is not None and after_hour is not None:
         botengine.get_logger(f"{__name__}").info(
             "utilities: Check if we should contact technicians: {} <= {} <= {}".format(
                 before_hour,
@@ -890,6 +900,325 @@ class Color:
     END = Style.RESET_ALL
 
 
+def is_paid_subscription(botengine, location_object):
+    """
+    Determine if location has a paid subscription (foundational check, not application-specific).
+    
+    This is a foundational utility function that can be used by any microservice to check
+    subscription tier. The function considers both subscription status and odometer hours
+    to determine if a location should be treated as having a paid subscription.
+    
+    Logic:
+    - If botengine.services is None or empty → No services → returns False (not paid)
+    - If any service contains "Trial" (case-insensitive) → Free trial subscription:
+        - If odometer < threshold (default 45 days) → Treated as paid subscription → returns True
+        - If odometer >= threshold → Treated as free tier → returns False
+    - If we have services but none contain "Trial" → Paid subscription → returns True
+    
+    The free trial odometer threshold is configurable via organization property
+    "FREE_TRIAL_ODOMETER_DAYS" (default: 45 days).
+    
+    :param botengine: BotEngine environment
+    :param location_object: Location object (needed to access odometer_hours)
+    :return: True if location has a paid subscription (or free trial within odometer threshold), False otherwise
+    """
+    import properties
+    
+    # No services = not paid
+    if botengine.services is None:
+        return False
+    
+    if not isinstance(botengine.services, list):
+        return False
+    
+    if len(botengine.services) == 0:
+        return False
+    
+    # Check if any service contains "Trial" (case-insensitive)
+    has_trial_service = False
+    for service in botengine.services:
+        service_name = service.get("name",service.get("serviceName", ""))
+        if isinstance(service_name, str) and "trial" in service_name.lower():
+            has_trial_service = True
+            break
+    
+    if has_trial_service:
+        # Free trial subscription: Check odometer threshold
+        # Get threshold from organization property (default: 45 days)
+        free_trial_days = properties.get_property(
+            botengine,
+            "FREE_TRIAL_ODOMETER_DAYS",
+            complain_if_missing=False
+        )
+        if free_trial_days is None:
+            free_trial_days = 45  # Default: 45 days
+        
+        free_trial_hours = free_trial_days * 24
+        odometer_hours = getattr(location_object, 'odometer_hours', 0)
+        
+        # If odometer is below threshold, treat as paid subscription (trial still active)
+        if odometer_hours < free_trial_hours:
+            return True  # Treated as paid subscription
+        
+        # If odometer is at or above threshold, treat as free tier (trial expired)
+        return False  # Treated as free tier
+    
+    # Has services but none contain "Trial" = paid subscription
+    return True
+
+def is_feature_enabled(botengine, location_object, feature_name):
+    """
+    Check if a feature is enabled based on feature mapping and running bot services.
+    Services are stackable by providing a service name in features array
+
+    SERVICE_FEATURE_MAPPING = {
+        SERVICE_1: [FEATURE_1, FEATURE_2, ...],
+        SERVICE_2: [SERVICE_1, FEATURE_3, ...],
+        SERVICE_3: [SERVICE_2, FEATURE_4, ...],
+        ...
+    }
+    
+    :param botengine: BotEngine environment
+    :param location_object: Location object
+    :param feature_name: Name of the feature to check (e.g., "ADVANCED_ANALYTICS")
+    :return: True if the feature is enabled, False otherwise
+    """
+    is_paid = is_paid_subscription(botengine, location_object)
+    if not is_paid:
+        return False  # If not a paid subscription, no features are enabled
+    import properties
+    
+    feature_mapping = properties.get_property(botengine, "SERVICE_FEATURE_MAPPING", complain_if_missing=False)
+    if feature_mapping is None:
+        return True  # If no mapping defined, assume all features are enabled for paid subscriptions
+    botengine.get_logger(f"{__name__}").debug(f"|is_feature_enabled() feature_mapping: {feature_mapping}")
+    
+    # Create a set of active services for case-insensitive comparison
+    services = set()
+    for service in botengine.services or []:
+        service_name = service.get("name",service.get("serviceName", ""))
+        if isinstance(service_name, str):
+            services.add(service_name.lower())
+    botengine.get_logger(f"{__name__}").debug(f"|is_feature_enabled() all services: {services}")
+    # Create a set of all features enabled by the active services, accounting for stackable services
+    all_features = set()
+    for service, features in feature_mapping.items():
+        botengine.get_logger(f"{__name__}").debug(f"|is_feature_enabled() checking service '{service}'")
+        # Pull features specific to this service
+        if service.lower() not in services:
+            continue
+        botengine.get_logger(f"{__name__}").debug(f"|is_feature_enabled() Adding features '{features}' from service '{service}' to all_features")
+        all_features.update([f.lower() for f in features])
+        for f in features:
+            # Pull features from stackable services that match this service name (case-insensitive)
+            if f not in feature_mapping:
+                continue
+            botengine.get_logger(f"{__name__}").debug(f"|is_feature_enabled() Adding stackable features '{feature_mapping[f]}' from service '{f}'")
+            all_features.update([_f.lower() for _f in feature_mapping[f]])
+
+    botengine.get_logger(f"{__name__}").info(f"|is_feature_enabled() checking feature '{feature_name}' in all features {all_features}")
+    
+    # Finally, check if the requested feature is in the set of all enabled features (case-insensitive)
+    return feature_name.lower() in all_features
+
+def free_trial_days_remaining(botengine, location_object):
+    """
+    Get the number of days remaining on a free trial subscription.
+    
+    This function is designed to be developer-friendly:
+    - Returns None if the location does NOT have a free trial (paid subscription or no services)
+      This makes it clear you're asking the wrong question - use is_paid_subscription() instead.
+    - Returns a positive integer if the trial is active (days remaining)
+    - Returns 0 if the trial has expired (odometer reached threshold)
+    - Returns a negative integer if the trial expired in the past (for informational purposes)
+    
+    Examples:
+        days = utilities.free_trial_days_remaining(botengine, location)
+        if days is None:
+            # Not a free trial - this is a paid subscription or no services
+            # Use is_paid_subscription() to check subscription status
+        elif days > 0:
+            # Active free trial with 'days' days remaining
+        else:
+            # Trial expired (days == 0) or expired in the past (days < 0)
+    
+    :param botengine: BotEngine environment
+    :param location_object: Location object (needed to access odometer_hours)
+    :return: 
+        - None if not a free trial (paid subscription or no services)
+        - Positive integer: days remaining on active trial
+        - 0: trial just expired (odometer at threshold)
+        - Negative integer: trial expired in the past (for informational purposes)
+    """
+    import properties
+    
+    # No services = not a trial
+    if botengine.services is None:
+        return None
+    
+    if not isinstance(botengine.services, list):
+        return None
+    
+    if len(botengine.services) == 0:
+        return None
+    
+    # Check if any service contains "Trial" (case-insensitive)
+    has_trial_service = False
+    for service in botengine.services:
+        service_name = service.get("name",service.get("serviceName", ""))
+        if isinstance(service_name, str) and "trial" in service_name.lower():
+            has_trial_service = True
+            break
+    
+    # If no trial service found, this is a paid subscription (not a trial)
+    if not has_trial_service:
+        return None  # Not a free trial - this is a paid subscription
+    
+    # Free trial subscription: Calculate days remaining
+    # Get threshold from organization property (default: 45 days)
+    free_trial_days = properties.get_property(
+        botengine,
+        "FREE_TRIAL_ODOMETER_DAYS",
+        complain_if_missing=False
+    )
+    if free_trial_days is None:
+        free_trial_days = 45  # Default: 45 days
+    
+    free_trial_hours = free_trial_days * 24
+    odometer_hours = getattr(location_object, 'odometer_hours', 0)
+    
+    # Calculate days used (odometer hours / 24)
+    days_used = odometer_hours / 24.0
+    
+    # Calculate days remaining
+    days_remaining = free_trial_days - days_used
+    
+    # Return as integer (round down for positive, round up for negative to be conservative)
+    if days_remaining >= 0:
+        return int(days_remaining)  # Active trial or just expired
+    else:
+        return int(days_remaining)  # Expired in the past (negative value)
+
+
+def supporters_receive_alerts(botengine):
+    """
+    Check if SUPPORTERS_RECEIVE_ALERTS organization property is set to True.
+
+    :param botengine: BotEngine environment
+    :return: True if family should receive alerts, False (default) for no alerts
+    """
+    import properties
+
+    value = properties.get_property(
+        botengine,
+        "SUPPORTERS_RECEIVE_ALERTS",
+        complain_if_missing=False,
+        default=False
+    )
+
+    if isinstance(value, bool):
+        return value
+
+    botengine.get_logger(f"{__name__}").error(
+        "Error parsing SUPPORTERS_RECEIVE_ALERTS property: {}. Defaulting to False.".format(value)
+    )
+    return False
+
+
+def has_recent_activity_sensor(botengine, location_object, max_age_hours=24):
+    """
+    Check if location has at least one online sensor (BedDevice, RadarDevice, or MotionDevice)
+    that has sent a measurement recently.
+    
+    This is a foundational check to determine if a location has active data sources.
+    Similar to the check used in location_sleep_quantification_microservice, but
+    accepts all MotionDevices (not just those outside bedroom).
+    
+    :param botengine: BotEngine environment
+    :param location_object: Location object
+    :param max_age_hours: Maximum age of last measurement in hours (default: 24)
+    :return: True if location has at least one connected sensor with recent data, False otherwise
+    """
+    # Import device classes here to avoid circular dependencies
+    try:
+        from devices.bed.bed import BedDevice
+        from devices.radar.radar import RadarDevice
+        from devices.motion.motion import MotionDevice
+    except ImportError:
+        # If imports fail, return False (conservative approach)
+        return False
+    
+    max_age_ms = ONE_HOUR_MS * max_age_hours
+    current_timestamp = botengine.get_timestamp()
+    
+    for device_object in location_object.devices.values():
+        # Check if device is connected
+        if not device_object.is_connected:
+            continue
+        
+        # Check if device has a recent measurement
+        last_measurement = device_object.last_measurement_timestamp_ms(botengine)
+        if not last_measurement:
+            continue
+        
+        # Check if measurement is recent enough
+        if current_timestamp - last_measurement >= max_age_ms:
+            continue
+        
+        # Accept BedDevice, RadarDevice, or MotionDevice
+        if _isinstance(device_object, BedDevice):
+            return True
+        
+        if _isinstance(device_object, RadarDevice):
+            return True
+        
+        if _isinstance(device_object, MotionDevice):
+            return True
+    
+    return False
+
+
+def strip_emojis(text):
+    """
+    Strip emojis and other 4-byte UTF8 characters from text for database compatibility.
+    
+    Legacy databases use UTF8 (3-byte) encoding and cannot store 4-byte characters like emojis.
+    This function removes all characters outside the Basic Multilingual Plane (BMP).
+    
+    Use this function for:
+    - `botengine.narrate` descriptions and extra_json_dict
+    - External datastream messages to organizations
+    
+    DO NOT use for:
+    - Time-series state variables (reports) - keep emojis
+    - SMS messages - keep emojis
+    - Email content - keep emojis
+    
+    :param text: String that may contain emojis
+    :return: String with emojis removed
+    """
+    if not text:
+        return text
+    
+    if isinstance(text, dict):
+        # Recursively strip emojis from both keys and values — emoji-laden keys
+        # (e.g. "📅 Today") also break the cloud's narrative JSON storage.
+        return {strip_emojis(k): strip_emojis(v) for k, v in text.items()}
+    
+    if isinstance(text, list):
+        # Recursively strip emojis from list items
+        return [strip_emojis(item) for item in text]
+    
+    if not isinstance(text, str):
+        # Not a string, return as-is
+        return text
+    
+    # Remove 4-byte UTF8 characters (emojis and other non-BMP characters)
+    # Keep only characters in the Basic Multilingual Plane (U+0000 to U+FFFF)
+    # This preserves international characters while removing emojis
+    return ''.join(char for char in text if ord(char) <= 0xFFFF)
+
+
 def intify_tstmp(tstmp):
     """
     Convert a timestamp to millisecond ints for efficient interval calculation.
@@ -950,3 +1279,19 @@ def distance_between_points(latitude_1, longitude_1, latitude_2, longitude_2):
 
     # distance rounded down to the nearest meter
     return int(distance * 1000)
+
+
+def list_to_string(items):
+    """
+    Convert a list of items to a grammatically correct string.
+
+    :param items: List of strings to join
+    :return: Grammatically correct string (e.g., "a", "a and b", "a, b, and c")
+    """
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return "{} and {}".format(items[0], items[1])
+    return "{}, and {}".format(", ".join(items[:-1]), items[-1])

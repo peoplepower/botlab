@@ -43,6 +43,10 @@ class MobileButtonDevice(ButtonDevice):
     MEASUREMENT_NAME_STEPS = 'steps'
     MEASUREMENT_NAME_FALL_STATUS = 'fallStatus'
 
+    MEASUREMENT_FALL_STATUS_NO_FALL = 0
+    MEASUREMENT_FALL_STATUS_FALL_DETECTED = 1
+    MEASUREMENT_FALL_STATUS_FALL_ALARM = 2
+
     def __init__(
         self,
         botengine,

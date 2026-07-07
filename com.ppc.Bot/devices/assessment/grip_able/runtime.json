@@ -1,0 +1,12 @@
+{
+  "version": {
+    "triggerParameters": [
+      "able.4GS",
+      "able.GST",
+      "able.atRisk",
+      "able.CST",
+      "able.SMGT",
+      "able.TUG"
+    ]
+  }
+}

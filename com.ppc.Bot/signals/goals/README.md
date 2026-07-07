@@ -29,7 +29,8 @@ goals.update_goal(
 	location_object,
 	goal_id="goal-123",
 	title="Drink More Water",
-	completed_timestamp_ms=botengine.get_timestamp()
+	completed_timestamp_ms=botengine.get_timestamp(),
+	updated_timestamp_ms=botengine.get_timestamp(),
 )
 
 # Remove a goal

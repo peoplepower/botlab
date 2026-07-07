@@ -60,6 +60,7 @@ class TestGoals(unittest.TestCase):
         )
         goal_json["updated_timestamp_ms"] = botengine.get_timestamp()
         goal_json["completed"] = False
+        goal_json["added"] = True
         goals_state = botengine.get_state(GOALS_STATE_NAME)
         assert "goal_1" in goals_state
         assert goals_state["goal_1"] == goal_json

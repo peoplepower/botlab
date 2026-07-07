@@ -62,8 +62,6 @@ def track(
         external=False,
     )
 
-    botengine.get_logger(f"{__name__}").debug("|track() O properties={}".format(json.dumps(properties)))
-
 
 def track_and_notify(
     botengine,

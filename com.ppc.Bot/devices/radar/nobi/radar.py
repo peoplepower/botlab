@@ -18,6 +18,10 @@ class RadarNobiDevice(RadarDevice):
     # List of Device Types this class is compatible with
     DEVICE_TYPES = [2003]
 
+    # Nobi lamps report binary presence only (0 or 1), not occupant counts
+    OCCUPANCY_VALUE_KIND = "presence"
+    OCCUPANCY_MAX_TARGETS = 1
+
     # Parameters
     MEASUREMENT_NAME_TEMPERATURE = "degC"
     MEASUREMENT_NAME_HUMIDITY = "relativeHumidity"
@@ -37,17 +41,18 @@ class RadarNobiDevice(RadarDevice):
     MEASUREMENT_NAME_SIAQ = "siaq"
 
     # Activity events
-    MEASUREMENT_NAME_MOTION_STATUS = "motionStatus"
     MEASUREMENT_NAME_MOTION_OCCUPANCY = "occupancy"
     MEASUREMENT_NAME_MOTION_BED_STATUS = "bedStatus"
     MEASUREMENT_NAME_MOTION_SLEEP_STATUS = "sleepStatus"
+
+    # Fall Video events
+    MEASUREMENT_NAME_MESSAGE_ID = "messageId"
 
     MEASUREMENT_PARAMETERS_LIST = [
         MEASUREMENT_NAME_TEMPERATURE,
         MEASUREMENT_NAME_HUMIDITY,
         MEASUREMENT_NAME_VOC,
         RadarDevice.MEASUREMENT_NAME_FALL_STATUS,
-        MEASUREMENT_NAME_MOTION_STATUS,
         MEASUREMENT_NAME_MOTION_OCCUPANCY,
         MEASUREMENT_NAME_MOTION_BED_STATUS,
         MEASUREMENT_NAME_MOTION_SLEEP_STATUS,
@@ -160,37 +165,6 @@ class RadarNobiDevice(RadarDevice):
 
         return None
 
-    def did_change_motion_status(self, botengine=None):
-        """
-        Did we start detecting motion in this execution
-        :param botengine: BotEngine environment
-        :return: True if the light turned on in the last execution
-        """
-        return RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS in self.last_updated_params
-
-    def did_start_detecting_motion(self, botengine=None):
-        """
-        Did we start detecting motion in this execution
-        :param botengine: BotEngine environment
-        :return: True if the light turned on in the last execution
-        """
-        if RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS in self.measurements:
-            if RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS in self.last_updated_params:
-                return self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS][0][0] == 1
-
-        return False
-    
-    def is_detecting_motion(self, botengine=None):
-        """
-        Are we currently detecting motion
-        :param botengine:
-        :return:
-        """
-        if RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS in self.measurements:
-            if len(self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS]) > 0:
-                return self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MOTION_STATUS][0][0] == 1
-        return False
-
     def did_change_occupancy(self, botengine=None):
         """
         Did we start detecting occupancy in this execution
@@ -247,6 +221,27 @@ class RadarNobiDevice(RadarDevice):
             if len(self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MOTION_SLEEP_STATUS]) > 0:
                 return self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MOTION_SLEEP_STATUS][0][0] == 1
         return False
+    
+    def did_update_event_message_id(self, botengine=None):
+        """
+        Did we get a new message id in this execution
+        :param botengine:
+        :return:
+        """
+        return RadarNobiDevice.MEASUREMENT_NAME_MESSAGE_ID in self.last_updated_params
+    
+    def get_event_message_id(self, botengine=None):
+        """
+        Get the message id if we got one in this execution
+        :param botengine:
+        :return: tuple (message_id, message_id_timestamp_ms) if we got one in this execution, else None
+        """
+        if RadarNobiDevice.MEASUREMENT_NAME_MESSAGE_ID in self.measurements:
+            if len(self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MESSAGE_ID]) > 0:
+                message_id = self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MESSAGE_ID][0][0]
+                message_id_timestamp_ms = self.measurements[RadarNobiDevice.MEASUREMENT_NAME_MESSAGE_ID][0][1]
+                return (message_id, message_id_timestamp_ms)
+        return None
 
 
 

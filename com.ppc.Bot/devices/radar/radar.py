@@ -123,6 +123,16 @@ class RadarDevice(Device):
     # Occupancy target detection reading rate in milliseconds
     DEFAULT_REPORTING_RATE_MS = 5500
 
+    # Occupancy value kind: "count" means the device reports actual occupant counts (0, 1, 2, ...);
+    # "presence" means the device reports binary presence (0 or 1 only).
+    # Subclasses override this to declare their sensing capability.
+    OCCUPANCY_VALUE_KIND = "count"
+
+    # Maximum number of distinct targets this device can report simultaneously.
+    # None means unlimited (device can count as many as it sees).
+    # 1 means the device can only report present/absent.
+    OCCUPANCY_MAX_TARGETS = None
+
     # List of Device Types this class is compatible with
     DEVICE_TYPES = []
 
@@ -189,6 +199,13 @@ class RadarDevice(Device):
         # None = no override, True = force bedroom, False = force not bedroom
         self.is_in_bedroom_override = None
 
+        # Rolling marginal probability of occupancy: fraction of recent time this device reported occupied.
+        # Updated daily by device_radartrends_microservice. Range [0.0, 1.0]. None until first calculation.
+        self.p_marginal = None
+
+        # Timestamp of last p_marginal update
+        self.p_marginal_updated_ms = None
+
     def new_version(self, botengine):
         """
         New version
@@ -208,6 +225,12 @@ class RadarDevice(Device):
         # Added: July 29, 2025
         if not hasattr(self, 'is_in_bedroom_override'):
             self.is_in_bedroom_override = None
+
+        # Added: April 29, 2026
+        if not hasattr(self, 'p_marginal'):
+            self.p_marginal = None
+        if not hasattr(self, 'p_marginal_updated_ms'):
+            self.p_marginal_updated_ms = None
         pass
 
     def get_device_type_name(self):
@@ -233,6 +256,12 @@ class RadarDevice(Device):
         import utilities.utilities as utilities
 
         return utilities.ICON_FONT_FONTAWESOME_REGULAR
+
+    def is_presence_only(self):
+        """
+        :return: True if this device reports binary presence (0/1) rather than occupant counts
+        """
+        return self.OCCUPANCY_VALUE_KIND == "presence"
 
     def is_in_bedroom(self, botengine):
         """
@@ -522,6 +551,29 @@ class RadarDevice(Device):
         if RadarDevice.MEASUREMENT_NAME_BED_STATUS in self.measurements:
             return self.measurements[RadarDevice.MEASUREMENT_NAME_BED_STATUS][0][0]
         return None
+    
+    def last_out_of_bed_timestamp_ms(self, botengine):
+        """
+        Get the last timestamp when this RadarDevice reported being out of bed (bed status = 0).
+        :param botengine: BotEngine environment
+        :return: Timestamp in milliseconds when someone last got out of bed, or None if no bed exit found
+        """
+        if RadarDevice.MEASUREMENT_NAME_BED_STATUS not in self.measurements:
+            return None
+        
+        if len(self.measurements[RadarDevice.MEASUREMENT_NAME_BED_STATUS]) == 0:
+            return None
+        
+        last_out_of_bed_timestamp = None
+        
+        for measurement in self.measurements[RadarDevice.MEASUREMENT_NAME_BED_STATUS]:
+            value, timestamp = measurement[0], measurement[1]
+            # Check if this measurement shows out of bed (value = 0)
+            if value == 0:
+                if last_out_of_bed_timestamp is None or timestamp > last_out_of_bed_timestamp:
+                    last_out_of_bed_timestamp = timestamp
+        
+        return last_out_of_bed_timestamp
 
     def set_enter_duration(self, botengine, enter_duration):
         """
@@ -837,7 +889,7 @@ class RadarDevice(Device):
             ">get_room_boundaries_properties()"
         )
         content = {}
-        device_properties = botengine.get_device_property(self.device_id, "room")
+        device_properties = botengine.get_device_property(self.device_id, location_id=self.location_object.location_id, name="room")
         botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
             "|get_room_boundaries_properties() device_properties={}".format(
                 device_properties

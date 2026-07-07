@@ -6,11 +6,11 @@
     },
 
     # Runtime values
-    # Python 3.10 = 4
-    # Python 3.11 = 5
-    # Python 3.12 = 6
-    # Python 3.13 = 7
-    # Python 3.14 = 8
+    # 4 (Python 3.10)
+    # 5 (Python 3.11)
+    # 6 (Python 3.12)
+    # 7 (Python 3.13)
+    # 8 (Python 3.14)
     "runtime": 7,
 
     # Maximum time this bot is allowed to run, in seconds (maximum is 300 seconds)

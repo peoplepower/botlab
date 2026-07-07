@@ -80,6 +80,21 @@ class IntrexMotionDevice(MotionDevice):
                 return not self.measurements[IntrexMotionDevice.MEASUREMENT_NAME_STATUS][0][0]
 
         return False
+    
+    def is_occupancy_detected(self, botengine):
+        """
+        Check if occupancy is detected. This is an indicator if the device has additional logic to determine occupancy beyond just motion.
+        :param botengine: BotEngine environment
+        :return: True if occupancy is detected, False otherwise
+        """
+        alarm_status = False
+        if IntrexMotionDevice.MEASUREMENT_NAME_STATUS in self.measurements:
+            if len(self.measurements[IntrexMotionDevice.MEASUREMENT_NAME_STATUS]) > 0:
+                if (
+                    self.measurements[IntrexMotionDevice.MEASUREMENT_NAME_STATUS][0][0]
+                ):
+                    alarm_status = True
+        return alarm_status
 
     def force_stop_detecting_motion(self, botengine):
         """

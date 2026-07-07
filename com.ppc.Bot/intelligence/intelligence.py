@@ -7,8 +7,10 @@ file 'LICENSE.txt', which is part of this source code package.
 @author: David Moss
 """
 
+import json
 import bot
 from locations.location import Location
+from devices.device import Device
 import utilities.utilities as utilities
 
 class Intelligence:
@@ -25,6 +27,44 @@ class Intelligence:
 
         self.intelligence_id = str(uuid.uuid4())
         self.parent = parent
+        
+        # LLM argument storage: Maps reference -> (timestamp_ms, argument)
+        # Used to store arguments passed to llm_chat() for retrieval in llm_response()
+        # Format: {reference: (timestamp_ms, argument)}
+        # Auto-purged after 30 minutes to prevent memory leaks
+        self._llm_arguments = {}
+        
+        # LLM usage tracking: Tracks token usage and costs per microservice
+        # Format: {
+        #     "requests": int,              # Total number of LLM requests
+        #     "prompt_tokens": int,         # Total prompt tokens used
+        #     "completion_tokens": int,     # Total completion tokens used
+        #     "total_tokens": int,          # Total tokens (prompt + completion)
+        #     "cost_usd": float,            # Total cost in USD (only if provided by provider)
+        #     "by_provider": {              # Usage broken down by provider
+        #         provider_name: {
+        #             "requests": int,
+        #             "total_tokens": int,
+        #             "cost_usd": float
+        #         }
+        #     },
+        #     "by_model": {                 # Usage broken down by model
+        #         model_name: {
+        #             "requests": int,
+        #             "total_tokens": int,
+        #             "cost_usd": float
+        #         }
+        #     }
+        # }
+        self.llm_usage = {
+            "requests": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0,
+            "by_provider": {},
+            "by_model": {},
+        }
 
     def initialize(self, botengine):
         """
@@ -45,6 +85,21 @@ class Intelligence:
         Upgraded to a new bot version
         :param botengine: BotEngine environment
         """
+        # Added January 2, 2026 - LLM argument storage
+        if not hasattr(self, '_llm_arguments'):
+            self._llm_arguments = {}
+        
+        # Added January 2, 2026 - LLM usage tracking
+        if not hasattr(self, 'llm_usage'):
+            self.llm_usage = {
+                "requests": 0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost_usd": 0.0,
+                "by_provider": {},
+                "by_model": {},
+            }
         return
 
     def mode_updated(self, botengine, current_mode):
@@ -114,10 +169,11 @@ class Intelligence:
         """
         return
 
-    def survey_answered(self, botengine, survey):
+    def survey_answered(self, botengine, user_id, survey):
         """
         Survey was answered
         :param botengine: BotEngine environment
+        :param user_id: User ID that answered the survey
         :param survey: Survey data dictionary containing locationId, userId, and survey JSON
         """
         return
@@ -146,6 +202,26 @@ class Intelligence:
         :param botengine: Current botengine environment
         :param argument: Argument applied when setting the timer
         """
+        return
+
+    def llm_response(self, botengine, response, reference, argument):
+        """
+        Called automatically when LLM responds
+        
+        Override this method in your microservice to handle LLM responses.
+        Token usage is automatically tracked by the provider microservice before this method is called.
+        
+        The argument passed to llm_chat() is automatically cleaned up from memory when this method is called.
+        
+        :param botengine: BotEngine environment
+        :param response: LLM response (OpenAI format)
+        :param reference: Reference that was passed to llm_chat()
+        :param argument: Argument that was passed to llm_chat()
+        """
+        # Clean up stored argument now that we've received the response
+        if hasattr(self, "_llm_arguments") and reference in self._llm_arguments:
+            del self._llm_arguments[reference]
+        
         return
 
     def file_uploaded(
@@ -188,22 +264,31 @@ class Intelligence:
     def user_role_updated(
         self,
         botengine,
+        location_id,
         user_id,
         role,
-        alert_category,
+        previous_role,
+        category,
+        previous_category,
         location_access,
-        previous_alert_category,
         previous_location_access,
+        residency,
+        previous_residency,
     ):
         """
         A user changed roles
         :param botengine: BotEngine environment
-        :param user_id: User ID that changed roles
-        :param role: Application-layer agreed upon role integer which may auto-configure location_access and alert category
-        :param alert_category: User's current alert/communications category (1=resident; 2=supporter)
-        :param location_access: User's access to the location and devices. (0=None; 10=read location/device data; 20=control devices and modes; 30=update location info and manage devices)
-        :param previous_alert_category: User's previous category, if any
+        :param location_id: Location ID
+        :param user_id: User ID that changed
+        :param role: ROLE_TYPE_* Application-layer agreed upon role integer which may auto-configure location_access and alert category
+        :param previous_role: User's previous role, if any
+        :param category: ALERT_CATEGORY_* User's current alert/communications category (1=resident; 2=supporter)
+        :param previous_category: User's previous category, if any
+        :param location_access: LOCATION_ACCESS_* User's current access to the location
         :param previous_location_access: User's previous access to the location, if any
+        :param residency: RESIDENCY_* User's current residency status
+        :param previous_residency: User's previous residency status, if any
+        :return:
         """
         return
 
@@ -287,6 +372,152 @@ class Intelligence:
 
 
 
+    # ===============================================================================
+    # Built-in LLM methods.
+    # ===============================================================================
+    
+    def llm_chat(self, botengine, argument=None, reference=None, provider_api=None, **kwargs):
+        """
+        Send LLM request to a provider microservice.
+
+        The response will be automatically routed back to this microservice's llm_response() method
+        using the intelligence_id for routing (just like the timer system).
+
+        Supports multiple provider APIs via the provider_api parameter.
+        See signals/llm.py for available provider API constants and documentation links.
+
+        Kwargs are provider-specific parameters passed directly to the provider microservice.
+
+        Chat Completion API (default):
+            self.llm_chat(botengine,
+                messages=[{"role": "user", "content": "Hello"}],
+                model="gpt-4o",
+                temperature=0.2,
+            )
+
+        Response API:
+            import signals.llm as llm
+            self.llm_chat(botengine,
+                provider_api=llm.PROVIDER_API_OPENAI_RESPONSE,
+                input="Hello",
+                model="gpt-4o",
+            )
+
+        :param botengine: BotEngine environment
+        :param argument: Optional argument to provide when the response is received (like timer argument)
+        :param reference: Optional reference to identify this request (like timer reference)
+        :param provider_api: Provider API to use (see signals/llm.py constants). If None, defaults to Chat Completion.
+        :param kwargs: Provider-specific parameters (e.g., messages, input, model, max_tokens, temperature)
+        """
+        import signals.llm as llm
+
+        # Generate reference if not provided
+        if reference is None:
+            import uuid
+            reference = str(uuid.uuid4())
+
+        # Store argument with timestamp for later retrieval in llm_response()
+        self._store_llm_argument(botengine, reference, argument)
+
+        # Send request via signals
+        llm.chat(
+            botengine,
+            self.parent,
+            intelligence_id=self.intelligence_id,
+            reference=reference,
+            argument=argument,
+            provider_api=provider_api,
+            **kwargs
+        )
+    
+    def _store_llm_argument(self, botengine, reference, argument):
+        """
+        Store argument for LLM request with timestamp for auto-purge
+        
+        Arguments are automatically purged:
+        - When llm_response() is called (immediate cleanup)
+        - After 30 minutes if no response is received (prevent memory leaks)
+        
+        :param botengine: BotEngine environment
+        :param reference: Reference for this request
+        :param argument: Argument to store
+        """
+        # Ensure class variable exists
+        if not hasattr(self, "_llm_arguments"):
+            self._llm_arguments = {}
+        
+        # Auto-purge entries older than 30 minutes (cleanup orphaned requests)
+        current_timestamp_ms = botengine.get_timestamp()
+        purge_threshold_ms = current_timestamp_ms - (30 * 60 * 1000)  # 30 minutes
+        
+        # Remove old entries
+        self._llm_arguments = {
+            ref: (ts, arg) 
+            for ref, (ts, arg) in self._llm_arguments.items() 
+            if ts > purge_threshold_ms
+        }
+        
+        # Store new argument with timestamp
+        self._llm_arguments[reference] = (current_timestamp_ms, argument)
+    
+    def _get_llm_argument(self, botengine, reference):
+        """
+        Get stored argument for LLM request (for internal use or debugging)
+        
+        Note: The argument is automatically passed to llm_response() by the provider,
+        so this method is typically not needed. It's available for edge cases or debugging.
+        
+        :param botengine: BotEngine environment
+        :param reference: Reference for this request
+        :return: Stored argument, or None if not found or expired
+        """
+        if not hasattr(self, "_llm_arguments"):
+            return None
+        
+        if reference in self._llm_arguments:
+            timestamp_ms, argument = self._llm_arguments[reference]
+            # Check if expired (shouldn't happen due to auto-purge, but double-check)
+            current_timestamp_ms = botengine.get_timestamp()
+            if current_timestamp_ms - timestamp_ms > (30 * 60 * 1000):
+                del self._llm_arguments[reference]
+                return None
+            return argument
+        
+        return None
+    
+    def _get_provider_from_llm_response(self, response):
+        """
+        Extract provider name from LLM response
+        
+        Provider microservices should always include "provider" in the response metadata.
+        This fallback inference is only used if the provider field is missing (should be rare).
+        
+        :param response: LLM response dict
+        :return: Provider name (e.g., "openai", "anthropic", "caredaily")
+        """
+        # Primary method: Check for provider in response metadata (provider microservices should always include this)
+        if "provider" in response:
+            return response["provider"]
+        
+        # Fallback: Infer from response structure (only used if provider metadata is missing)
+        # NOTE: This is not super future-proof. Provider microservices should always
+        # include the "provider" field in their response metadata. This fallback may fail for:
+        # - New providers not listed here
+        # - Providers that change their ID format
+        # - Custom/internal providers
+        if "id" in response:
+            response_id = response.get("id", "")
+            if response_id.startswith("chatcmpl-"):
+                return "openai"
+            if response_id.startswith("msg-"):
+                return "anthropic"
+            # Add more provider ID patterns here as needed, but prefer fixing the provider microservice
+            # to include the "provider" field instead
+        
+        # If we can't determine the provider, return "unknown"
+        # This should rarely happen if provider microservices are implemented correctly
+        return "unknown"
+    
     # ===============================================================================
     # Built-in statistics methods.
     # ===============================================================================
@@ -502,3 +733,110 @@ class Intelligence:
             "calls": 0,
             "time": 0,
         }
+    
+    # ===============================================================================
+    # Built-in LLM usage tracking methods (like statistics).
+    # ===============================================================================
+    
+    def _init_llm_usage(self):
+        """
+        Initialize LLM usage tracking - called automatically like _init_statistics()
+        """
+        self.llm_usage = {
+            "requests": 0,              # Total number of LLM requests
+            "prompt_tokens": 0,         # Total prompt tokens used
+            "completion_tokens": 0,     # Total completion tokens used
+            "total_tokens": 0,          # Total tokens (prompt + completion)
+            "cost_usd": 0.0,            # Total cost in USD
+            "by_provider": {},          # Usage broken down by provider
+            "by_model": {},             # Usage broken down by model
+        }
+    
+    def track_llm_usage(self, botengine, provider, model, usage, cost_usd=None):
+        """
+        Track LLM usage for this microservice
+        
+        This method is called automatically by the provider microservice before llm_response().
+        Do not call this method directly - it's handled automatically.
+        
+        :param botengine: BotEngine environment
+        :param provider: Provider name (e.g., "openai", "anthropic")
+        :param model: Model name (e.g., "gpt-4", "claude-3")
+        :param usage: Usage dict with "prompt_tokens", "completion_tokens", "total_tokens"
+        :param cost_usd: Optional cost in USD if provided by the LLM response (most providers don't include this)
+        """
+        # Catch-all in case subclass forgets to call super().initialize()
+        if not hasattr(self, "llm_usage"):
+            self._init_llm_usage()
+        
+        self.llm_usage["requests"] += 1
+        self.llm_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
+        self.llm_usage["completion_tokens"] += usage.get("completion_tokens", 0)
+        self.llm_usage["total_tokens"] += usage.get("total_tokens", 0)
+        
+        # Only track cost if explicitly provided (most LLM providers don't include cost in response)
+        if cost_usd is not None:
+            self.llm_usage["cost_usd"] += cost_usd
+        
+        # Track by provider
+        if provider not in self.llm_usage["by_provider"]:
+            self.llm_usage["by_provider"][provider] = {
+                "requests": 0,
+                "total_tokens": 0,
+                "cost_usd": 0.0
+            }
+        self.llm_usage["by_provider"][provider]["requests"] += 1
+        self.llm_usage["by_provider"][provider]["total_tokens"] += usage.get("total_tokens", 0)
+        if cost_usd is not None:
+            self.llm_usage["by_provider"][provider]["cost_usd"] += cost_usd
+        
+        # Track by model
+        if model not in self.llm_usage["by_model"]:
+            self.llm_usage["by_model"][model] = {
+                "requests": 0,
+                "total_tokens": 0,
+                "cost_usd": 0.0
+            }
+        self.llm_usage["by_model"][model]["requests"] += 1
+        self.llm_usage["by_model"][model]["total_tokens"] += usage.get("total_tokens", 0)
+        if cost_usd is not None:
+            self.llm_usage["by_model"][model]["cost_usd"] += cost_usd
+
+        # Save as timeseries state, pinned to midnight local time
+        if utilities._isinstance(self.parent, Location):
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").info(f"|track_llm_usage() Tracking LLM usage for Location intelligence: {self.llm_usage}")
+            local_date = self.parent.get_local_datetime(botengine)
+        elif utilities._isinstance(self.parent, Device):
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").info(f"|track_llm_usage() Tracking LLM usage for Device intelligence: {self.llm_usage}")
+            local_date = self.parent.location_object.get_local_datetime(botengine)
+        else:
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").warning("<track_llm_usage() Unable to determine local date for LLM usage tracking")
+            return
+        local_date_midnight = local_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_ms = self.parent.timezone_aware_datetime_to_unix_timestamp(botengine, local_date_midnight)
+        field_name = f"{type(self).__name__}"
+        state = {
+            field_name: json.loads(json.dumps(self.llm_usage))
+        }
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(f"|track_llm_usage() Tracking LLM usage: {state}")
+        botengine.set_state("llm_usage", state, timestamp_ms=day_ms, fields_updated=[field_name])
+    
+    def get_llm_usage(self, botengine):
+        """
+        Get LLM usage statistics for this microservice - just like get_statistics()
+        
+        :param botengine: BotEngine environment
+        :return: Dict with usage statistics
+        """
+        if not hasattr(self, "llm_usage"):
+            self._init_llm_usage()
+        return self.llm_usage.copy()  # Return copy to prevent external modification
+    
+    def reset_llm_usage(self, botengine):
+        """
+        Reset LLM usage statistics - just like reset_statistics()
+        
+        :param botengine: BotEngine environment
+        """
+        self._init_llm_usage()
+    

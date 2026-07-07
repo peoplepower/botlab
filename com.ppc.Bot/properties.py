@@ -8,12 +8,13 @@ file 'LICENSE.txt', which is part of this source code package.
 """
 
 
-def get_property(botengine, name, complain_if_missing=True):
+def get_property(botengine, name, complain_if_missing=True, default=None):
     """
     Extract a property 'the right way' to allow organization properties to override the local bot properties.
     :param botengine: BotEngine environment
     :param name: Property name
     :param complain_if_missing: Issue a warning to the developer if this property is missing, default is True
+    :param default: Default value to return if the property is missing
     :return: Property value, or None if it doesn't exist
     """
     # Organization properties override local properties
@@ -55,4 +56,4 @@ def get_property(botengine, name, complain_if_missing=True):
                         name
                     )
                 )
-    return None
+    return default

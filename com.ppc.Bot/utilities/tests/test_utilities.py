@@ -62,19 +62,48 @@ class TestUtilities(unittest.TestCase):
         )
         assert categories == []
 
-    @patch("properties.get_property")
-    def test_get_chat_assistant_name(self, mock_get_property):
+        # Test 5: [1.2] notify_responders=True excludes Technicians during business hours
+        mock_get_relative_time_of_day.return_value = 12
+        botengine.organization_properties[
+            "ALLOW_ADMINISTRATIVE_RESPONDERS_MONITORING"
+        ] = True
+        categories = utilities.get_organization_user_notification_categories(
+            botengine, location_object, notify_responders=True
+        )
+        assert categories == [
+            1,
+            utilities.ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESPONDER,
+        ]
+
+        # Test 6: notify_responders=True with ALLOW_ADMINISTRATIVE_RESPONDERS_MONITORING disabled
+        botengine.organization_properties[
+            "ALLOW_ADMINISTRATIVE_RESPONDERS_MONITORING"
+        ] = False
+        categories = utilities.get_organization_user_notification_categories(
+            botengine, location_object, notify_responders=True
+        )
+        assert categories == [1]
+
+        # Test 7: notify_responders=False still includes Technicians during business hours
+        categories = utilities.get_organization_user_notification_categories(
+            botengine, location_object, notify_responders=False
+        )
+        assert categories == [1, 2]
+
+    def test_get_chat_assistant_name(self):
         # Initial setup
         botengine = BotEnginePyTest({})
-
         # Check default
-        mock_get_property.return_value = None
+        botengine.organization_properties[
+            "CHAT_ASSISTANT_NAME"
+        ] = None
+
         assert (
             utilities.get_chat_assistant_name(botengine)
             == utilities.DEFAULT_CHAT_ASSISTANT_NAME
         )
 
-        mock_get_property.return_value = "Test"
+        botengine.organization_properties["CHAT_ASSISTANT_NAME"] = "Test"
         assert utilities.get_chat_assistant_name(botengine) == "Test"
 
     def test_utilities_distance_between_points(self):
@@ -99,23 +128,23 @@ class TestUtilities(unittest.TestCase):
         "botengine_pytest.BotEnginePyTest.get_organization_id",
         MagicMock(return_value=123),
     )
-    @patch("properties.get_property")
-    def test_utilities_get_admin_url_for_location(self, get_property_mock):
+    def test_utilities_get_admin_url_for_location(self):
         botengine = BotEnginePyTest({})
 
-        get_property_mock.return_value = None
+        botengine.organization_properties["COMMAND_CENTER_URLS"] = None
         assert utilities.get_admin_url_for_location(botengine) == ""
 
-        get_property_mock.return_value = {
-            "sbox.peoplepowerco.com": "https://console.peoplepowerfamily.com"
+        cloud_address = botengine.get_cloud_address()
+        botengine.organization_properties["COMMAND_CENTER_URLS"] = {
+            cloud_address: "https://console.peoplepowerfamily.com"
         }
         assert (
             utilities.get_admin_url_for_location(botengine)
             == "https://console.peoplepowerfamily.com/#!/main/locations/edit/123"
         )
 
-        get_property_mock.return_value = {
-            "sbox.peoplepowerco.com": "https://app.caredaily.ai"
+        botengine.organization_properties["COMMAND_CENTER_URLS"] = {
+            cloud_address: "https://app.caredaily.ai"
         }
         assert (
             utilities.get_admin_url_for_location(botengine)
@@ -147,3 +176,47 @@ class TestUtilities(unittest.TestCase):
 
         json_loads_mock.return_value = {"app": {"core": -1}}
         assert utilities.is_core_bot(botengine, True)
+
+    def test_strip_emojis_basic(self):
+        # Plain strings have emojis removed; ASCII/BMP characters preserved.
+        assert utilities.strip_emojis("Hello 📅 World") == "Hello  World"
+        assert utilities.strip_emojis("No emojis here") == "No emojis here"
+        assert utilities.strip_emojis("") == ""
+        assert utilities.strip_emojis(None) is None
+
+    def test_strip_emojis_preserves_international(self):
+        # BMP characters (e.g. accented Latin, CJK) must survive.
+        assert utilities.strip_emojis("café") == "café"
+        assert utilities.strip_emojis("日本語") == "日本語"
+
+    def test_strip_emojis_dict_values(self):
+        assert utilities.strip_emojis({"a": "x 📊 y"}) == {"a": "x  y"}
+
+    def test_strip_emojis_dict_keys(self):
+        # AGE-358: dict keys must also be stripped — cloud narrative storage
+        # rejects emoji-prefixed keys like "📅 Today".
+        result = utilities.strip_emojis({"📅 Today": "value", "📊 This Week": "v2"})
+        assert result == {" Today": "value", " This Week": "v2"}
+
+    def test_strip_emojis_nested(self):
+        payload = {
+            "report_name": "weekly",
+            "summary_text": {
+                "📅 Today": "Today went well 😴",
+                "📊 This Week": "Good week 📈",
+            },
+            "highlights": ["📈 trend up", "no emoji"],
+        }
+        expected = {
+            "report_name": "weekly",
+            "summary_text": {
+                " Today": "Today went well ",
+                " This Week": "Good week ",
+            },
+            "highlights": [" trend up", "no emoji"],
+        }
+        assert utilities.strip_emojis(payload) == expected
+
+    def test_strip_emojis_non_string_keys(self):
+        # Non-string keys (ints, tuples) must pass through without crashing.
+        assert utilities.strip_emojis({1: "📊 ok", 2: "fine"}) == {1: " ok", 2: "fine"}

@@ -93,7 +93,7 @@ class PressurePadDevice(BedDevice):
         if target_goal_id == MotionDevice.GOAL_MOTION_PROTECT_HOME:
             return True
 
-        return Device.is_goal_id(self, target_goal_id)
+        return BedDevice.is_goal_id(self, target_goal_id)
 
 
     # ===========================================================================
@@ -117,6 +117,36 @@ class PressurePadDevice(BedDevice):
         """
         return PressurePadDevice.MEASUREMENT_NAME_STATUS in self.last_updated_params
 
+    def did_change_state(self, botengine=None):
+        """
+        :return: True if this pressure pad's state was updated just now
+        """
+        return PressurePadDevice.MEASUREMENT_NAME_STATUS in self.last_updated_params
+
+    def is_pressure_applied(self, botengine=None):
+        """
+        :return: True if pressure is applied
+        """
+        if PressurePadDevice.MEASUREMENT_NAME_STATUS in self.measurements:
+            return self.measurements[PressurePadDevice.MEASUREMENT_NAME_STATUS][0][0]
+        return False
+
+    def did_apply_pressure(self, botengine=None):
+        """
+        Did you get on the pressure pad?
+        :param botengine: BotEngine environment
+        :return: True if pressure was just applied
+        """
+        return self.did_change_state(botengine) and self.is_pressure_applied(botengine)
+
+    def did_release_pressure(self, botengine=None):
+        """
+        Did you get off the pressure pad?
+        :param botengine: BotEngine environment
+        :return: True if pressure was just released
+        """
+        return self.did_change_state(botengine) and not self.is_pressure_applied(botengine)
+
     # ===========================================================================
     # CSV methods for machine learning algorithm integrations
     # ===========================================================================
@@ -128,6 +158,7 @@ class PressurePadDevice(BedDevice):
         :param newest_timestamp_ms: newest timestamp in milliseconds
         :return: .csv string, largely matching the .csv data you would receive from the "botengine --download_device [device_id]" command line interface. Or None if this device doesn't have data.
         """
+        from devices.device import Device
         return Device.get_csv(
             self,
             botengine,

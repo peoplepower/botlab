@@ -43,6 +43,7 @@ def add_goal(
         "category": category,
         "created_timestamp_ms": created_timestamp_ms,
         "user_id": user_id,
+        'added': True,
     }
     content = {k: v for k, v in content.items() if v is not None}
 
@@ -60,6 +61,7 @@ def update_goal(
     description=None,
     category=None,
     completed=None,
+    updated_timestamp_ms=None,
 ):
     """
     Update a goal.
@@ -72,6 +74,7 @@ def update_goal(
     :param description: Human-readable description for end-users
     :param category: Goal category
     :param completed: Optional flag indicating if the goal is completed
+    :param updated_timestamp_ms: Optional Timestamp when the goal was last updated
     :return:
     """
     content = {
@@ -81,6 +84,7 @@ def update_goal(
         "description": description,
         "category": category,
         "completed": completed,
+        "updated_timestamp_ms": updated_timestamp_ms,
     }
 
     content = {k: v for k, v in content.items() if v is not None}

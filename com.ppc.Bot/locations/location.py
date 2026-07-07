@@ -50,7 +50,12 @@ class Location:
         self.born_on = botengine.get_timestamp()
 
         # Odometer tracking hours of connected service in which devices are truly connected / operating
-        self.odometer_hours = 0
+        # Load from non-volatile state to persist across service changes
+        state_odometer = botengine.get_state("location_odometer_hours")
+        if state_odometer is not None:
+            self.odometer_hours = int(state_odometer)
+        else:
+            self.odometer_hours = 0
 
         # Data filtration modules to optionally correct data before entering into the upper layers of our stack
         self.filters = {}
@@ -141,11 +146,29 @@ class Location:
             self.sub_type = None
 
         # Added August 22, 2025 - Odometer tracking hours of connected service
+        # Updated December 2025 - Store odometer in non-volatile state to persist across service changes
         if not hasattr(self, "odometer_hours"):
-            # Calculate initial odometer value based on born_on timestamp for existing locations
-            current_time = botengine.get_timestamp()
-            time_diff_hours = int((current_time - self.born_on) / (1000 * 60 * 60))
-            self.odometer_hours = time_diff_hours
+            # Try to load odometer from non-volatile state first
+            state_odometer = botengine.get_state("location_odometer_hours")
+            if state_odometer is not None:
+                self.odometer_hours = int(state_odometer)
+            else:
+                # Calculate initial odometer value based on born_on timestamp for existing locations
+                current_time = botengine.get_timestamp()
+                time_diff_hours = int((current_time - self.born_on) / (1000 * 60 * 60))
+                self.odometer_hours = time_diff_hours
+                # Save initial value to state for future persistence
+                botengine.set_state("location_odometer_hours", self.odometer_hours)
+        else:
+            # Take the maximum of local and state values to ensure we never lose odometer hours
+            # This handles migration from old class variable to state variable
+            state_odometer = botengine.get_state("location_odometer_hours")
+            if state_odometer is not None:
+                state_odometer = int(state_odometer)
+                # Use the maximum to ensure we never lose hours
+                self.odometer_hours = max(self.odometer_hours, state_odometer)
+            # Always save the current (potentially updated) value to state
+            botengine.set_state("location_odometer_hours", self.odometer_hours)
 
         # Log device information when running locally
         if botengine.local:
@@ -972,10 +995,11 @@ class Location:
             ">messages_updated()"
         )
 
-    def survey_answered(self, botengine, survey):
+    def survey_answered(self, botengine, user_id, survey):
         """
         Survey was answered
         :param botengine: BotEngine environment
+        :param user_id: User ID that answered the survey
         :param survey: Survey data dictionary containing locationId, userId, and survey JSON
         """
         botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
@@ -999,7 +1023,7 @@ class Location:
                 import time
 
                 t = time.time()
-                microservice_object.survey_answered(botengine, survey)
+                microservice_object.survey_answered(botengine, user_id, survey)
                 microservice_object.track_statistics(
                     botengine, (time.time() - t) * 1000
                 )
@@ -1026,7 +1050,7 @@ class Location:
                     if not hasattr(microservice_object, "survey_answered"):
                         continue
                     try:
-                        microservice_object.survey_answered(botengine, survey)
+                        microservice_object.survey_answered(botengine, user_id, survey)
                     except Exception as e:
                         import traceback
 
@@ -1045,7 +1069,7 @@ class Location:
             if not hasattr(filter_object, "survey_answered"):
                 continue
             try:
-                filter_object.survey_answered(botengine, survey)
+                filter_object.survey_answered(botengine, user_id, survey)
             except Exception as e:
                 import traceback
 
@@ -1311,6 +1335,8 @@ class Location:
 
             if any_device_connected:
                 self.odometer_hours += 1
+                # Save odometer to non-volatile state to persist across service changes
+                botengine.set_state("location_odometer_hours", self.odometer_hours)
                 botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
                     f"|schedule_fired() Running live for {self.odometer_hours} hours"
                 )
@@ -1426,23 +1452,31 @@ class Location:
     def user_role_updated(
         self,
         botengine,
+        location_id,
         user_id,
         role,
+        previous_role,
         category,
-        location_access,
         previous_category,
+        location_access,
         previous_location_access,
+        residency,
+        previous_residency,
     ):
         """
         A user changed roles
         :param botengine: BotEngine environment
         :param location_id: Location ID
-        :param user_id: User ID that changed roles
-        :param role: Application-layer agreed upon role integer which may auto-configure location_access and alert category
-        :param category: User's current alert/communications category (1=resident; 2=supporter)
-        :param location_access: User's access to the location and devices. (0=None; 10=read location/device data; 20=control devices and modes; 30=update location info and manage devices)
+        :param user_id: User ID that changed
+        :param role: ROLE_TYPE_* Application-layer agreed upon role integer which may auto-configure location_access and alert category
+        :param previous_role: User's previous role, if any
+        :param category: ALERT_CATEGORY_* User's current alert/communications category (1=resident; 2=supporter)
         :param previous_category: User's previous category, if any
+        :param location_access: LOCATION_ACCESS_* User's current access to the location
         :param previous_location_access: User's previous access to the location, if any
+        :param residency: RESIDENCY_* User's current residency status
+        :param previous_residency: User's previous residency status, if any
+        :return:
         """
         self.synchronize_users(botengine)
 
@@ -1451,12 +1485,16 @@ class Location:
             try:
                 self.users[user_id].user_role_updated(
                     botengine,
+                    location_id,
                     user_id,
                     role,
+                    previous_role,
                     category,
-                    location_access,
                     previous_category,
+                    location_access,
                     previous_location_access,
+                    residency,
+                    previous_residency,
                 )
             except Exception as e:
                 import traceback
@@ -1479,12 +1517,16 @@ class Location:
                 t = time.time()
                 microservice_object.user_role_updated(
                     botengine,
+                    location_id,
                     user_id,
                     role,
+                    previous_role,
                     category,
-                    location_access,
                     previous_category,
+                    location_access,
                     previous_location_access,
+                    residency,
+                    previous_residency,
                 )
                 microservice_object.track_statistics(
                     botengine, (time.time() - t) * 1000
@@ -1515,12 +1557,16 @@ class Location:
                             intelligence_id
                         ].user_role_updated(
                             botengine,
+                            location_id,
                             user_id,
                             role,
+                            previous_role,
                             category,
-                            location_access,
                             previous_category,
+                            location_access,
                             previous_location_access,
+                            residency,
+                            previous_residency,
                         )
                     except Exception as e:
                         import traceback
@@ -1779,17 +1825,16 @@ class Location:
         :param microservice_id: Microservice ID
         :return: Microservice object, or None if it doesn't exist.
         """
-        for microservice_object in self.sorted_intelligence_modules(botengine).values():
-            if microservice_object.intelligence_id == microservice_id:
-                return microservice_object
+        # Search location-level microservices
+        for microservice in self.intelligence_modules.values():
+            if hasattr(microservice, 'intelligence_id') and microservice.intelligence_id == microservice_id:
+                return microservice
 
+        # Search device-level microservices
         for device_object in self.devices.values():
-            for microservice in device_object.intelligence_modules:
-                if (
-                    device_object.intelligence_modules[microservice].intelligence_id
-                    == microservice_id
-                ):
-                    return device_object.intelligence_modules[microservice]
+            for microservice in device_object.intelligence_modules.values():
+                if hasattr(microservice, 'intelligence_id') and microservice.intelligence_id == microservice_id:
+                    return microservice
 
         return None
 
@@ -1806,39 +1851,29 @@ class Location:
         for user_json in users:
             user_id = user_json["id"]
             user_id_list.append(user_id)
-            first_name = ""
-            last_name = ""
-            location_access = None
-            alert_category = None
-            role = None
-            language = "en"
-
-            if "firstName" in user_json:
-                first_name = user_json["firstName"]
-
-            if "lastName" in user_json:
-                last_name = user_json["lastName"]
-
-            if "locationAccess" in user_json:
-                location_access = user_json["locationAccess"]
-
-            if "category" in user_json:
-                alert_category = user_json["category"]
-
-            if "role" in user_json:
-                role = user_json["role"]
 
             if user_id not in self.users:
                 self.users[user_id] = User(botengine, user_json["id"])
 
             # Synchronize
-            self.users[user_id].first_name = first_name
-            self.users[user_id].last_name = last_name
-            self.users[user_id].location_access = location_access
-            self.users[user_id].alert_category = alert_category
-            self.users[user_id].role = role
-            self.users[user_id].language = language
             self.users[user_id].location_object = self
+            self.users[user_id].first_name = user_json.get("firstName", "")
+            self.users[user_id].last_name = user_json.get("lastName", "")
+            self.users[user_id].location_access = user_json.get("locationAccess")
+            self.users[user_id].alert_category = user_json.get("category")
+            self.users[user_id].role = user_json.get("role")
+            self.users[user_id].language = user_json.get("language", "en")
+            self.users[user_id].role_id = user_json.get("roleId")
+            self.users[user_id].accessibility = user_json.get("accessibility")
+            self.users[user_id].birth_date = user_json.get("birthDate")
+            self.users[user_id].call_order = user_json.get("callOrder")
+            self.users[user_id].email_status = user_json["email"].get("status") if user_json.get("email") else None
+            self.users[user_id].email_verified = user_json["email"].get("verified") if user_json.get("email") else None
+            self.users[user_id].gender = user_json.get("gender")
+            self.users[user_id].phone_channels = user_json.get("phoneChannels")
+            self.users[user_id].phone_type = user_json.get("phoneType")
+            self.users[user_id].residency = user_json.get("residency")
+            self.users[user_id].sms_status = user_json.get("smsStatus")
 
         # Delete users that no longer exist
         for user_id in list(self.users.keys()):
@@ -1871,6 +1906,7 @@ class Location:
         location_access=None,
         alert_category=None,
         role=None,
+        residency=None,
     ):
         """
         Get all users in this location that match the criteria.
@@ -1879,6 +1915,7 @@ class Location:
         :param location_access: Optional location access level
         :param alert_category: Optional alert category
         :param role: Optional role
+        :param residency: Optional residency status
         :return: List of User objects
         """
         self.synchronize_users(botengine)
@@ -1908,8 +1945,16 @@ class Location:
             ):
                 if self.users[user_id] not in users:
                     users.append(self.users[user_id])
+        # Residency
+        for user_id in self.users:
+            if (
+                residency is not None
+                and self.users[user_id].residency == residency
+            ):
+                if self.users[user_id] not in users:
+                    users.append(self.users[user_id])
         # No criteria
-        if role is None and alert_category is None and location_access is None:
+        if role is None and alert_category is None and location_access is None and residency is None:
             users = list(self.users.values())
 
         return users
@@ -1937,10 +1982,36 @@ class Location:
     def get_location_name(self, botengine):
         """
         Get the nickname of this location
+        References PHI handling and replaces with device subtype location name or generic name with location ID.
+
         :param botengine: BotEngine environment
-        :return: Nickname
+        :return: Location Name
         """
-        return botengine.get_location_name()
+        phi_handling = properties.get_property(
+            botengine, "ENABLE_PHI_HANDLING", False, False
+        )
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "|get_location_name() phi_handling={}".format(phi_handling)
+        )
+
+        location = botengine.get_location_name()
+        if phi_handling:
+            try:
+                location = _("Location {}").format(self.location_id)  # noqa: F821 # type: ignore
+                sub_location = botengine.get_location_info(
+                    sub_type=botengine.LOCATION_SUB_TYPE_DEVICE
+                )
+                if sub_location:
+                    location = sub_location["location"]["name"]
+            except Exception as e:
+                import traceback
+
+                botengine.get_logger(f"{__name__}.{__class__.__name__}").warning(
+                    "|get_location_name() could not get location name: {}; trace={}".format(
+                        e, traceback.format_exc()
+                    )
+                )
+        return location
 
     # ===========================================================================
     # Mode
@@ -2248,6 +2319,7 @@ class Location:
         internal=True,
         external=True,
         raise_exceptions=False,
+        scope=1,
     ):
         """
         Distribute a data stream message both internally to any intelligence module within this bot,
@@ -2258,13 +2330,14 @@ class Location:
         :param internal: True to deliver this message internally to any intelligence module that's listening (default)
         :param external: True to deliver this message externally to any other bot that's listening (default)
         :param raise_exceptions: True to raise an exception if an error occurs when distributing internally, False to log the error and continue
+        :param scope: Optional scope of the message (default is 1). Location - 1, Organization - 2.
         """
         botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
             ">distribute_datastream_message()"
         )
         botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
-            "|distribute_datastream_message() - address={} content={} internal={} external={} raise_exceptions={}".format(
-                address, content, internal, external, raise_exceptions
+            "|distribute_datastream_message() - address={} content={} internal={} external={} raise_exceptions={} scope={}".format(
+                address, content, internal, external, raise_exceptions, scope
             )
         )
         if internal:
@@ -2273,7 +2346,7 @@ class Location:
             )
 
         if external:
-            botengine.send_datastream_message(address, content)
+            botengine.send_datastream_message(address, content, scope=scope)
 
     # ===========================================================================
     # Narration
@@ -2306,6 +2379,8 @@ class Location:
         to_user=True,
         to_admin=False,
         publish_to_partner=None,
+        parent_id=None,
+        parent_narrative_time=None,
     ):
         """
         Narrate some activity
@@ -2335,6 +2410,8 @@ class Location:
         :param to_user: True to deliver to end user History
         :param device_object: Device object to reference
         :param publish_to_partner: Set to False to avoid streaming this narrative to partner clouds (default is always True)
+        :param parent_id: Optional parent narrative ID if this is a sub-narrative of another narrative
+        :param parent_narrative_time: Optional parent narrative timestamp if this is a sub-n
         :return:  { "user": narrative_object, "admin": narrative_object }. The narrative_object may be None. See com.ppc.Bot/narrative.py
         """
         # Do not narrate if UI override has been set in place to put location in ABSENT/VACATION MODE
@@ -2378,46 +2455,38 @@ class Location:
         else:
             extra_json_dict.update(payload)
 
+        narrative_json = {
+            "title": title,
+            "description": description,
+            "priority": priority,
+            "icon": icon,
+            "icon_font": icon_font,
+            "status": status,
+            "narrative_type": narrative_type,
+            "file_ids": file_ids,
+            "extra_json_dict": extra_json_dict,
+            "event_type": event_type,
+            "parent_id": parent_id,
+            "parent_narrative_time": parent_narrative_time,
+        }
+
         response_dict = {"user": None, "admin": None}
-
-        narrate_body = {}
-        if title is not None:
-            narrate_body["title"] = title
-        if description is not None:
-            narrate_body["description"] = description
-
-        if narrate_body:
-            narrate_body["priority"] = priority
-            self.distribute_datastream_message(
-                botengine,
-                "capture_narrate",
-                content=narrate_body,
-                internal=True,
-                external=False,
-            )
 
         if to_admin:
             response = botengine.narrate(
-                title,
-                description,
-                priority,
-                icon,
-                icon_font=icon_font,
-                status=status,
                 timestamp_ms=timestamp_ms,
-                narrative_type=narrative_type,
-                file_ids=file_ids,
-                extra_json_dict=extra_json_dict,
-                event_type=event_type,
                 update_narrative_id=update_narrative_id,
                 update_narrative_timestamp=update_narrative_timestamp,
                 admin=True,
                 publish_to_partner=publish_to_partner,
+                **narrative_json,
             )
 
             if response is not None:
                 response_dict["admin"] = Narrative(
-                    response["narrativeId"], response["narrativeTime"], admin=True
+                    response["narrativeId"], 
+                    response["narrativeTime"], 
+                    admin=True,
                 )
                 if microservice_identifier is not None:
                     self.org_narratives[microservice_identifier] = response_dict[
@@ -2431,26 +2500,18 @@ class Location:
 
         if to_user:
             response = botengine.narrate(
-                title,
-                description,
-                priority,
-                icon,
-                icon_font=icon_font,
-                status=status,
-                timestamp_ms=timestamp_ms,
-                narrative_type=narrative_type,
-                file_ids=file_ids,
-                extra_json_dict=extra_json_dict,
-                event_type=event_type,
                 update_narrative_id=update_narrative_id,
                 update_narrative_timestamp=update_narrative_timestamp,
                 admin=False,
                 publish_to_partner=publish_to_partner,
+                **narrative_json,
             )
 
             if response is not None:
                 response_dict["user"] = Narrative(
-                    response["narrativeId"], response["narrativeTime"], admin=False
+                    response["narrativeId"], 
+                    response["narrativeTime"], 
+                    admin=False,
                 )
                 if microservice_identifier is not None:
                     self.location_narratives[microservice_identifier] = response_dict[
@@ -2551,6 +2612,17 @@ class Location:
         :return: True if the person is sleeping or about to wake up.
         """
         return "SLEEP" in self.occupancy_status or "S2H" in self.occupancy_status
+
+    def is_napping(self, botengine=None):
+        """
+        Check if occupants are currently napping
+        
+        Added December 31, 2025 for nap detection support.
+        
+        :param botengine: BotEngine environment (optional)
+        :return: True if the person is napping
+        """
+        return "NAP" in self.occupancy_status
 
     def update_mode(self, botengine):
         """
@@ -2716,6 +2788,26 @@ class Location:
                 )
 
         return timestamp_ms
+    
+    def timezone_aware_datetime(self, botengine, dt):
+        """
+        Convert a local datetime / timezone-aware datetime
+        :param botengine: BotEngine environment
+        :param dt: Datetime to convert to timezone-aware datetime
+        :return: local timezone-aware datetime
+        """
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
+            ">timezone_aware_datetime() dt={}".format(dt)
+        )
+        tz = pytz.timezone(self.get_local_timezone_string(botengine))
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
+            "|timezone_aware_datetime() tz={}".format(tz)
+        )
+        local_dt = dt.astimezone(tz)
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
+            "<timezone_aware_datetime() local_dt={}".format(local_dt)
+        )
+        return local_dt
 
     def timezone_aware_datetime_to_unix_timestamp(self, botengine, dt):
         """
@@ -2727,14 +2819,7 @@ class Location:
         botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
             ">timezone_aware_datetime_to_unix_timestamp() dt={}".format(dt)
         )
-        tz = pytz.timezone(self.get_local_timezone_string(botengine))
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
-            "|timezone_aware_datetime_to_unix_timestamp() tz={}".format(tz)
-        )
-        local_dt = dt.astimezone(tz)
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
-            "|timezone_aware_datetime_to_unix_timestamp() local_dt={}".format(local_dt)
-        )
+        local_dt = self.timezone_aware_datetime(botengine, dt)
         timestamp = int((local_dt).timestamp()) * 1000
         botengine.get_logger(f"{__name__}.{__class__.__name__}").debug(
             "<timezone_aware_datetime_to_unix_timestamp() timestamp={}".format(
@@ -3010,3 +3095,87 @@ class Location:
                 reverse=True,
             )
         )
+
+    # =========================================================================
+    # DEVICE HEALTH AND DATA AVAILABILITY
+    # =========================================================================
+
+    def get_connected_devices_count(self, botengine):
+        """
+        Get the count of currently connected devices at this location.
+
+        :param botengine: BotEngine environment
+        :return: Tuple of (connected_count, total_count)
+        """
+        connected = 0
+        total = 0
+        for device_object in self.devices.values():
+            # Skip gateway devices - we care about sensor devices
+            if hasattr(device_object, 'is_gateway') and device_object.is_gateway:
+                continue
+            total += 1
+            if device_object.is_connected:
+                connected += 1
+        return connected, total
+
+    def all_devices_offline(self, botengine):
+        """
+        Check if all sensor devices at this location are offline.
+
+        Used to detect situations where we have no sensor data and should not
+        generate reports based on hallucinated/default data.
+
+        :param botengine: BotEngine environment
+        :return: True if all devices are offline (or no devices exist), False if any device is connected
+        """
+        connected, total = self.get_connected_devices_count(botengine)
+        if total == 0:
+            # No devices at all means we have no data
+            return True
+        return connected == 0
+
+    def has_recent_device_activity(self, botengine, hours=24):
+        """
+        Check if any device at this location has reported data recently.
+
+        This is more reliable than just checking connection status - a device
+        might be "connected" but not actually sending meaningful data.
+
+        :param botengine: BotEngine environment
+        :param hours: Number of hours to look back for activity (default 24)
+        :return: True if any device has recent activity, False otherwise
+        """
+        cutoff_ms = botengine.get_timestamp() - (hours * utilities.ONE_HOUR_MS)
+
+        for device_object in self.devices.values():
+            # Check if device has a recent measurement timestamp
+            if hasattr(device_object, 'last_measurement_timestamp_ms'):
+                if device_object.last_measurement_timestamp_ms and device_object.last_measurement_timestamp_ms > cutoff_ms:
+                    return True
+
+            # Alternative: check born_on for very new devices
+            if hasattr(device_object, 'born_on'):
+                if device_object.born_on and device_object.born_on > cutoff_ms:
+                    # Device was recently added, assume it has activity
+                    return True
+
+        return False
+
+    def get_device_health_summary(self, botengine):
+        """
+        Get a summary of device health at this location.
+
+        :param botengine: BotEngine environment
+        :return: Dictionary with device health information
+        """
+        connected, total = self.get_connected_devices_count(botengine)
+        has_activity = self.has_recent_device_activity(botengine, hours=24)
+
+        return {
+            "connected_count": connected,
+            "total_count": total,
+            "all_offline": connected == 0 and total > 0,
+            "no_devices": total == 0,
+            "has_recent_activity": has_activity,
+            "data_available": connected > 0 and has_activity
+        }
