@@ -1,0 +1,384 @@
+{
+  "trend.bedtime": {
+    "category": "category.sleep",
+    "comment": "Track changes in sleep patterns by recording the time when the residence transitions to a sleep state, with insights indicating earlier bedtime averages over the week and month.",
+    "daily": true,
+    "hidden": false,
+    "icon": "bed",
+    "max_value": 30,
+    "min_value": 18,
+    "operation": 1,
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Bedtime",
+    "units": "timestamp_ms",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.bedtime_score": {
+    "category": "category.sleep",
+    "comment": "Monitors the consistency of bedtime over the last 14 days, suggesting recommendations for improvement.",
+    "daily": true,
+    "hidden": false,
+    "icon": "snooze",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.sleep_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Bedtime Score",
+    "units": "%",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.fall_duration": {
+    "category": "category.stability",
+    "comment": "Amount of time detected on the ground.",
+    "daily": false,
+    "hidden": false,
+    "icon": "clock",
+    "max_value": 7200000,
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.stability_score",
+    "services": [],
+    "title": "Fall Duration",
+    "units": "ms",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.mobility_duration": {
+    "category": "category.activity",
+    "comment": "Tracks total time spent in motion detected by sensors, capturing state changes and significant target movements.",
+    "daily": false,
+    "hidden": false,
+    "icon": "walking",
+    "max_value": 86400000,
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.mobility_score",
+    "services": [
+      "care.generalinactivity",
+      "care.morninginactivity"
+    ],
+    "title": "Time spent in motion",
+    "units": "ms",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.mobility_rooms": {
+    "category": "category.activity",
+    "comment": "Gain insights into the daily activities of independent residents living alone by tracking room transitions every 15 minutes.",
+    "daily": false,
+    "hidden": false,
+    "icon": "door-open",
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.mobility_score",
+    "services": [
+      "care.generalinactivity",
+      "care.morninginactivity"
+    ],
+    "title": "Rooms Visited",
+    "units": "Rooms",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.mobility_score": {
+    "category": "category.activity",
+    "comment": "Analyzes time spent in motion and rooms visited, providing insights into below-average mobility patterns.",
+    "daily": false,
+    "hidden": false,
+    "icon": "walking",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 3,
+    "services": [
+      "care.generalinactivity",
+      "care.morninginactivity"
+    ],
+    "title": "Mobility Score",
+    "units": "%",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.restlessness_score": {
+    "category": "category.sleep",
+    "comment": "Measures bedroom movement during sleep using passive motion sensors.",
+    "daily": true,
+    "hidden": false,
+    "icon": "waveform-path",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.sleep_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Tranquility Score",
+    "units": "%",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_bathroom_visits": {
+    "category": "category.bathroom",
+    "comment": "Track and analyze the frequency of nighttime bathroom visits during sleep occupancy to identify patterns and highlight nights with a high number of visits.",
+    "daily": true,
+    "hidden": false,
+    "icon": "house-night",
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.bathroom_score",
+    "services": [
+      "care.bathroomactivity"
+    ],
+    "title": "Bathroom Visits at Night",
+    "units": "Visits",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_cycle_alignment": {
+    "category": "category.sleep",
+    "comment": "How well wake time aligns with sleep cycles",
+    "daily": true,
+    "hidden": false,
+    "icon": "target",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Sleep Cycle Alignment",
+    "units": "%",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_cycle_duration": {
+    "category": "category.sleep",
+    "comment": "Average sleep cycle length based on duration patterns",
+    "daily": true,
+    "hidden": false,
+    "icon": "refresh",
+    "max_value": 120,
+    "min_value": 60,
+    "operation": 1,
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Sleep Cycle Duration",
+    "units": "min",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_duration": {
+    "category": "category.sleep",
+    "comment": "Track and display sleep duration trends, indicating changes such as increased weekly and monthly average sleep for the resident.",
+    "daily": true,
+    "hidden": false,
+    "icon": "alarm-clock",
+    "max_value": 54000000,
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.restlessness_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Sleep Duration",
+    "units": "ms",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_interruptions": {
+    "category": "category.sleep",
+    "comment": "Number of sleep interruptions detected during the night, including motion, out-of-bed events, and other disturbances that may affect sleep quality and stability.",
+    "daily": true,
+    "hidden": false,
+    "icon": "moon",
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.sleep_score",
+    "services": [],
+    "title": "Sleep Interruptions",
+    "units": "Interruptions",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_movement": {
+    "category": "category.sleep",
+    "comment": "Amount of time motion was detected while occupants were believed to be asleep.",
+    "daily": true,
+    "hidden": false,
+    "icon": "waveform-path",
+    "max_value": 21600000,
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.restlessness_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Movement while Sleeping",
+    "units": "ms",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.sleep_score": {
+    "category": "category.sleep",
+    "comment": "Sleep Score trend analyzes consistency of bedtime, wakeup time, tranquility, sleep cycle alignment, and other factors to provide insights on days with below-average sleep quality, focusing on child trends like bedtime consistency, wakeup time consistency, sleep duration, wake-up time, and sleep tranquility.",
+    "daily": true,
+    "hidden": false,
+    "icon": "snooze",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Sleep Score",
+    "units": "%",
+    "updated_ms": 1773288000000,
+    "window": 30
+  },
+  "trend.social_score": {
+    "category": "category.social",
+    "comment": "Evaluates residence occupancy trends using identified visitors, occupants leaving the home, and daily check-ins, providing a score based on absence or multiple occupancy durations.",
+    "daily": true,
+    "hidden": false,
+    "icon": "heart",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "services": [],
+    "title": "Social Score",
+    "units": "%",
+    "updated_ms": 1773458695806,
+    "window": 30
+  },
+  "trend.stability_event_duration": {
+    "category": "category.stability",
+    "comment": "Amount of time detected as having been unstable.",
+    "daily": false,
+    "hidden": true,
+    "icon": "clock",
+    "operation": 2,
+    "parent_id": "trend.stability_score",
+    "services": [],
+    "title": "Stability Event Duration",
+    "units": "ms",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.stability_score": {
+    "category": "category.stability",
+    "comment": "Comprehensive assessment of occupant stability based on falls, sleep quality, mobility, and other health indicators.",
+    "daily": true,
+    "hidden": false,
+    "icon": "walking",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "services": [],
+    "title": "Stability Score",
+    "units": "%",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.total_falls": {
+    "category": "category.stability",
+    "comment": "Total falls detected each day, including fall alerts that were muted.",
+    "daily": false,
+    "hidden": false,
+    "icon": "user-injured",
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.stability_score",
+    "services": [],
+    "title": "Potential Falls",
+    "units": "Falls",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.total_potential_falls": {
+    "category": "category.stability",
+    "comment": "Total pre-fall conditions detected each day that resolved without escalating to confirmed falls. These events indicate brief instability that may contribute to fall risk.",
+    "daily": false,
+    "hidden": false,
+    "icon": "exclamation-triangle",
+    "min_value": 0,
+    "operation": 2,
+    "parent_id": "trend.stability_score",
+    "services": [],
+    "title": "Potential Falls (Unreported)",
+    "units": "Potential Falls",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.total_stability_events": {
+    "category": "category.stability",
+    "comment": "Total stability events detected each day, including stability event alerts that were muted.",
+    "daily": false,
+    "hidden": false,
+    "icon": "user-injured",
+    "operation": 2,
+    "parent_id": "trend.stability_score",
+    "services": [],
+    "title": "Potential Stability Events",
+    "units": "Stability Events",
+    "updated_ms": 1773465895875,
+    "window": 30
+  },
+  "trend.wakeup": {
+    "category": "category.sleep",
+    "comment": "Track changes in sleep patterns by recording the time when the residence transitions out of a sleep state, with insights indicating later wake time averages over the week and month.",
+    "daily": true,
+    "hidden": false,
+    "icon": "bed",
+    "max_value": 15,
+    "min_value": 3,
+    "operation": 1,
+    "parent_id": "trend.wakeup_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Wake Time",
+    "units": "timestamp_ms",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.wakeup_score": {
+    "category": "category.sleep",
+    "comment": "Consistency of wake time over the last 14 days, ensuring a stable routine for better care management.",
+    "daily": true,
+    "hidden": false,
+    "icon": "snooze",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "parent_id": "trend.sleep_score",
+    "services": [
+      "care.latenight"
+    ],
+    "title": "Wakeup Score",
+    "units": "%",
+    "updated_ms": 1773322615858,
+    "window": 30
+  },
+  "trend.wellness_score": {
+    "category": "category.summary",
+    "comment": "This metric assesses historical trends by scoring various lifestyle activities, including sleep, biometrics, mobility, stability, bathroom patterns, and social interactions.",
+    "daily": false,
+    "hidden": false,
+    "icon": "star",
+    "max_value": 100,
+    "min_value": 0,
+    "operation": 1,
+    "services": [],
+    "title": "Wellness Score",
+    "units": "%",
+    "updated_ms": 1773465920413,
+    "window": 30
+  }
+}

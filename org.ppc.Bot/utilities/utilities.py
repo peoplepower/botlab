@@ -55,7 +55,10 @@ SMS_OPT_OUT = 2
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_MANAGER = 1
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_TECHNICIAN = 2
 ORGANIZATION_USER_NOTIFICATION_CATEGORY_BILLING = 3
-ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESEARCHER = 4
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_CONNECTIONS = 4
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_PROVIDER = 5
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_REPORTS = 6
+ORGANIZATION_USER_NOTIFICATION_CATEGORY_RESPONDER = 7
 
 def celsius_to_fahrenheit(celsius):
     """
@@ -189,6 +192,44 @@ def get_answer(question_object):
         return normalize_measurement(question_object.answer)
     return normalize_measurement(question_object.default_answer)
 
+def good_enough_unique_id():
+    """
+    Return a UUID4 unique ID that is "good enough"
+    "e363f4f3-8ea1-4a01-a480-b12d560a84f5" => "b12d560a84f5"
+    :return: String pseudo-unique ID
+    """
+    import uuid
+    return str(uuid.uuid4()).split("-")[-1]
+
+def float_round(number, count=1):
+    if isinstance(number, float):
+        return round(number, count)
+    else:
+        return round(float(number), count)
+
+def cumulative_moving_average(new_value, previous_average, previous_count):
+    """
+    Calculate a Cumulative Moving Average (running average). Use this when you want to calculate an average value
+    without storing each data point.
+
+    :param new_value: New value
+    :param previous_average: Previous average
+    :param previous_count: Previous total count of the times this function has been executed up until now.
+    :return: New average
+    """
+    return previous_average + (new_value - previous_average) / (previous_count + 1)
+
+def get_midnight_timestamp_ms(timestamp_ms):
+    """
+    Get the midnight timestamp in ms for the given timestamp
+    :param timestamp_ms: Timestamp in milliseconds
+    :return: Midnight timestamp in milliseconds (UTC)
+    """
+    import datetime
+    dt = datetime.datetime.utcfromtimestamp(timestamp_ms / 1000)
+    midnight_dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(midnight_dt.timestamp() * 1000)
+
 def human_readable_format(dt):
     """
     Returns an ISO formatted datetime that matches the format the server (Java) gives us, which is in milliseconds and not microseconds.
@@ -238,7 +279,7 @@ def getsize(obj_0):
         iteritems = 'items'
     except ImportError: # Python 2
         from collections import Mapping
-        zero_depth_bases = (basestring, Number, xrange, bytearray)
+        zero_depth_bases = (basestring, Number, xrange, bytearray)  # noqa: F821
         iteritems = 'iteritems'
 
     _seen_ids = set()
@@ -250,7 +291,7 @@ def getsize(obj_0):
         size = sys.getsizeof(obj)
         if isinstance(obj, zero_depth_bases):
             pass # bypass remaining control flow and return
-        elif isinstance(obj, (tuple, list, Set, deque)):
+        elif isinstance(obj, (tuple, list, set, deque)):
             size += sum(inner(i) for i in obj)
         elif isinstance(obj, Mapping) or hasattr(obj, iteritems):
             size += sum(inner(k) + inner(v) for k, v in getattr(obj, iteritems)())
@@ -281,6 +322,102 @@ def _isinstance(object, classinfo):
         for subclass in classinfo.__subclasses__()
         if hasattr(subclass, "__module__")
     ]
+
+def get_admin_url(botengine):
+    """
+    Attempt to return the URL of the command center.
+
+    To make this work, you'll need a file in the base of the bot called 'domain.py' containing configuration settings,
+    or set the properties in your organization.
+
+    It should have a property like this:
+
+        # Command Center URLs
+        COMMAND_CENTER_URLS = {
+            "app.peoplepowerco.com": "https://console.peoplepowerfamily.com",
+            "sboxall.peoplepowerco.com": "https://maestro-sbox.peoplepowerco.com"
+            or
+            "app.peoplepowerco.com": "https://app.caredaily.ai",
+            "sboxall.peoplepowerco.com": "https://app-sbox.caredaily.ai"
+        }
+
+    :return: URL to this home in the appropriate command center
+    """
+    # The domain.COMMAND_CENTER_URLS (or your organization property) should be formatted like this: https://console.peoplepowerfamily.com
+    import bundle
+    import properties
+
+    url = "https://app.caredaily.ai"
+    if properties.get_property(botengine, "COMMAND_CENTER_URLS") is not None:
+        for u in properties.get_property(botengine, "COMMAND_CENTER_URLS"):
+            if u in bundle.CLOUD_ADDRESS:
+                url = properties.get_property(botengine, "COMMAND_CENTER_URLS")[u]
+
+    return url
+
+
+def get_admin_url_for_location(botengine, location_id=None):
+    """
+    Attempt to return the URL of the command center for this home.
+
+    To make this work, you'll need a file in the base of the bot called 'domain.py' containing configuration settings,
+    or set the properties in your organization.
+
+    It should have a property like this:
+
+        # Command Center URLs
+        COMMAND_CENTER_URLS = {
+            "app.peoplepowerco.com": "https://console.peoplepowerfamily.com",
+            "sboxall.peoplepowerco.com": "https://maestro-sbox.peoplepowerco.com"
+            or
+            "app.peoplepowerco.com": "https://app.caredaily.ai",
+            "sboxall.peoplepowerco.com": "https://app-sbox.caredaily.ai"
+        }
+
+    :param location_id: Optional location ID to link to. Defaults to this bot's location, which is
+        useful for organization-level bots that need to link to specific child locations.
+    :return: URL to this home in the appropriate command center
+    """
+    # The domain.COMMAND_CENTER_URLS (or your organization property) should be formatted like this: https://console.peoplepowerfamily.com
+    import bundle
+    import properties
+
+
+    url = None
+    if properties.get_property(botengine, "COMMAND_CENTER_URLS") is not None:
+        for u in properties.get_property(botengine, "COMMAND_CENTER_URLS"):
+            if u in bundle.CLOUD_ADDRESS:
+                url = properties.get_property(botengine, "COMMAND_CENTER_URLS")[u]
+
+    if url is None:
+        botengine.get_logger(f"{__name__}").warning(
+            "utilities.get_admin_url_for_location(): No COMMAND_CENTER_URLS defined in domain.py for address {}".format(
+                bundle.CLOUD_ADDRESS
+            )
+        )
+        return ""
+
+    if location_id is not None:
+        # Check if the url contains caredaily
+        if any([domain in url for domain in ["console", "maestro"]]):
+            # Return the url for Maestro
+            return "{}/#!/main/locations/edit/{}".format(url, location_id)
+
+        # Return the url for CareDailyInsights
+        return "{}/org/{}/locations/{}/dashboard".format(
+            url, botengine.get_organization_id(), location_id
+        )
+    else:
+        # Check if the url contains caredaily
+        if any([domain in url for domain in ["console", "maestro"]]):
+            # Return the url for Maestro
+            return url
+
+        # Return the url for CareDailyInsights
+        return "{}/org/{}/locations".format(
+            url, botengine.get_organization_id()
+        )
+
 
 
 class MachineLearningError(Exception):

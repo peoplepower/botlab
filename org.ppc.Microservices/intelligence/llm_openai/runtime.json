@@ -1,0 +1,35 @@
+{
+  "version": {
+    # TRIGGER
+    # Describe when this bot should trigger and execute. Add the trigger IDs together to combine triggers.
+    # For example, to trigger off of both a Schedule (1) and a Data Stream Message (256): 1 + 256 ==math==> "trigger": 257
+    #
+    # 1 = Schedule (based off a cron schedule inside this runtime.json file)
+    # 16 = Question answered by the user
+    # 64 = Reserved for timers
+    # 256 = Data Stream Message received
+    # 2048 = Data Request
+    "trigger": 320,
+
+    "dataStreams": [
+      {
+        "address": "openai"
+      },
+      {
+        "address": "llm_openai_run_test"
+      }
+    ],
+
+    "communications": [
+      {
+        "category": 0,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      }
+    ]
+  }
+}
+
+

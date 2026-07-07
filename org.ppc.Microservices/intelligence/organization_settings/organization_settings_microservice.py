@@ -13,7 +13,61 @@ from intelligence.intelligence import Intelligence
 
 class OrganizationSettingsMicroservice(Intelligence):
     """
-    Base Intelligence Module Class / Interface for Organizations
+    Organization Settings Microservice
+    
+    This microservice manages global settings across an entire organization, providing a centralized
+    configuration management system for multi-location deployments. It enables administrators to
+    define, distribute, and maintain consistent settings across all bot instances within an organization.
+    
+    Purpose:
+    This microservice exists to solve the challenge of managing configuration settings across multiple
+    locations and bot instances within a single organization. Rather than configuring each location
+    individually, administrators can define settings once at the organization level and have them
+    automatically distributed to all relevant bot instances.
+    
+    How It Works:
+    1. Stores organization-wide settings in a dictionary keyed by setting address
+    2. Receives data stream messages to save, delete, or retrieve settings
+    3. Validates requests to ensure they originate from trusted sources (not from other bots)
+    4. Distributes settings changes to all bot instances in the organization via data stream messages
+    5. Persists settings using admin content storage for durability
+    
+    Security:
+    This microservice includes security checks to prevent unauthorized bots from modifying
+    organization-wide settings. Settings can only be saved or deleted by direct requests,
+    not by other bot instances (enforced via from_bot_id checks).
+    
+    Data Stream Interactions:
+    - 'save_settings': Saves a new setting or updates an existing one. Content must include 'address'.
+    - 'delete_settings': Removes a setting by address. Content must include 'address'.
+    - 'get_settings': Delivers all current settings to a requesting bot instance.
+    
+    Setting Storage:
+    - Settings are stored in self.settings dictionary with address as the key
+    - Settings are persisted via botengine.set_admin_content() for durability
+    - Settings are distributed to all bots using scope=1 (organization-wide)
+    
+    Tools:
+    The /tools directory contains command-line utilities to interact with this microservice:
+    - save_settings.py: Saves or updates an organization setting (includes example TOU schedule)
+    - delete_settings.py: Removes an organization setting by address
+    - get_settings.py: Retrieves all current organization settings
+    
+    Usage Example:
+    python save_settings.py --admin_username admin@example.com --admin_password pass -o 123 -s app.peoplepowerco.com
+    python get_settings.py --admin_username admin@example.com --admin_password pass -o 123 -s app.peoplepowerco.com
+    python delete_settings.py --admin_username admin@example.com --admin_password pass -o 123 -s app.peoplepowerco.com
+    
+    Common Use Cases:
+    - Time-of-use (TOU) rate schedules for energy management
+    - Organization-wide operational parameters
+    - Feature flags and configuration toggles
+    - Shared thresholds and limits
+    
+    Notes:
+    - This microservice operates at the organization level (scope 2)
+    - Settings are automatically synchronized across all bot instances
+    - Admin-level authentication is required to modify settings
     """
 
     def __init__(self, botengine, parent):

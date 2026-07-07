@@ -1,0 +1,50 @@
+{
+  "version": {
+    # TRIGGER
+    # Describe when this bot should trigger and execute. Add the trigger IDs together to combine triggers.
+    # For example, to trigger off of both a Schedule (1) and a Device Measurement (8): 1 + 8 ==math==> "trigger": 9
+    #
+    # 1 = Schedule (based off a cron schedule inside this runtime.json file)
+    # 16 = Question answered by the user
+    # 256 = Data Stream Message received
+    # 2048 = Data request ready
+    "trigger": 2304,
+    
+    "dataStreams": [
+      {
+        "address": "calculate_invoice"
+      }
+    ],
+    
+    # COMMUNICATIONS
+    # Bots request permission to communicate over specific channels with different people and groups. Users can
+    # opt-out of communications.
+    #
+    # Categories
+    #   0 = Location Users
+    #   1 = Specific Address
+    #   2 = Organization Users
+    #
+    # Communication types
+    #   email - Email notifications
+    #   push - Push notifications to phones signed into your account
+    #   sms - SMS message to designated phone numbers or groups
+    #   msg - in-app messaging
+    "communications": [
+      {
+        "category": 1,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      },
+      {
+        "category": 2,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      }
+    ]
+  }
+}

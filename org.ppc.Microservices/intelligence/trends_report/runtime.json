@@ -1,0 +1,22 @@
+{
+  "version": {
+    "trigger": 2368,
+    "dataStreams": [
+      {
+        "address": "trends_report_run_test"
+      },
+      {
+        "address": "openai"
+      }
+    ],
+    "communications": [
+      {
+        "category": 0,
+        "email": true,
+        "push": false,
+        "sms": false,
+        "msg": false
+      }
+    ]
+  }
+}
