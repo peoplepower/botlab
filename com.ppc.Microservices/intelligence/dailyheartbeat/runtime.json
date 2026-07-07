@@ -1,0 +1,10 @@
+{
+  "version": {
+    "trigger": 256,
+    "dataStreams": [
+      {
+        "address": "report_sent_to_org"
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "version": {
+    # TRIGGER
+    # 8 = Device measurements or state change
+    # 256 = Data Stream Message received
+    "trigger": 264,
+
+    "deviceTypes": [
+      {
+        "id": 2009,
+        "trigger": true,
+        "read": true,
+        "control": false,
+        "reason": {
+          "en": "GripAble Able-Assess"
+        }
+      }
+    ],
+
+    "dataStreams": [
+      {
+        "address": "assessment_completed"
+      }
+    ],
+
+    "communications": [
+      {
+        "category": 0,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      },
+      {
+        "category": 2,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      }
+    ]
+  }
+}

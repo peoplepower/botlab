@@ -1,0 +1,64 @@
+{
+  "questions": [
+    {
+      "questionKey": "cognitive_health_work",
+      "answer": "5"
+    },
+    {
+      "questionKey": "health_conditions_interference",
+      "answer": "4"
+    },
+    {
+      "questionKey": "hospitalization_past_year",
+      "answer": "5"
+    },
+    {
+      "questionKey": "life_engagement",
+      "answer": "5"
+    },
+    {
+      "questionKey": "medical_care_seeking",
+      "answer": "5"
+    },
+    {
+      "questionKey": "memory_thinking_impact",
+      "answer": "4"
+    },
+    {
+      "questionKey": "physical_condition_limits",
+      "answer": "4"
+    },
+    {
+      "questionKey": "physical_health_action",
+      "answer": "5"
+    },
+    {
+      "questionKey": "qualitative_best_parts",
+      "answer": "The best parts of my life right now are the relationships I have built here, the sense of safety and comfort in my daily routine, and the ability to enjoy beautiful surroundings while staying active. I value the friendships, the stimulating activities, and the peace of mind that comes from knowing support is always nearby."
+    },
+    {
+      "questionKey": "qualitative_improvement_areas",
+      "answer": "I would like to continue improving my balance and overall stamina, and I would also like to focus more on maintaining mental sharpness through learning and creative activities."
+    },
+    {
+      "questionKey": "qualitative_life_experience",
+      "answer": "Over the next year, I would like to continue traveling in small, manageable ways, deepen my friendships, and remain independent and engaged. Ideally, I see myself feeling physically strong, mentally clear, and actively participating in the community while enjoying each day with gratitude."
+    },
+    {
+      "questionKey": "quality_of_life_active_work",
+      "answer": "5"
+    },
+    {
+      "questionKey": "quality_of_life_improvement",
+      "answer": "4"
+    },
+    {
+      "questionKey": "quality_of_life_satisfaction",
+      "answer": "5"
+    },
+    {
+      "questionKey": "staying_connected",
+      "answer": "5"
+    }
+  ]
+}

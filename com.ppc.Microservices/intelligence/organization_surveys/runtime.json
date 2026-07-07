@@ -1,0 +1,38 @@
+{
+  "version": {
+    "trigger": 768,
+
+    "dataStreams": [
+      {
+        "address": "organization_surveys_post_notification"
+      }
+    ],
+    "access": [
+      {
+        "category": 1,
+        "trigger": true,
+        "read": true,
+        "control": true,
+        "reason": {
+          "en": "Coordinate with location users."
+        }
+      }
+    ],
+    "communications": [
+      {
+        "category": 0,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      },
+      {
+        "category": 2,
+        "email": true,
+        "push": true,
+        "sms": true,
+        "msg": true
+      }
+    ]
+  }
+}

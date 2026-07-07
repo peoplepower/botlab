@@ -1,0 +1,109 @@
+{
+    "endTime": 1768946579000,
+    "questions": [
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I actively work to maintain or improve my cognitive health",
+        "questionKey": "cognitive_health_work",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "4",
+        "answerTime": 1768946579000,
+        "question": "My health conditions rarely interfere with my daily life.",
+        "questionKey": "health_conditions_interference",
+        "responseOption": "Agree"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I have needed hospitalization or emergency care in the past year.",
+        "questionKey": "hospitalization_past_year",
+        "responseOption": "No"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I feel engaged with life through purpose, relationships, and/or meaningful activities.",
+        "questionKey": "life_engagement",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I seek medical care when needed.",
+        "questionKey": "medical_care_seeking",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "4",
+        "answerTime": 1768946579000,
+        "question": "My memory and thinking rarely affect my daily life.",
+        "questionKey": "memory_thinking_impact",
+        "responseOption": "Agree"
+        },
+        {
+        "answer": "4",
+        "answerTime": 1768946579000,
+        "question": "My physical condition rarely limits my daily life.",
+        "questionKey": "physical_condition_limits",
+        "responseOption": "Agree"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I take action to maintain or improve my physical health.",
+        "questionKey": "physical_health_action",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "The best parts of my life right now are the relationships I have built here, the sense of safety and comfort in my daily routine, and the ability to enjoy beautiful surroundings while staying active. I value the friendships, the stimulating activities, and the peace of mind that comes from knowing support is always nearby.",
+        "answerTime": 1768946579000,
+        "question": "What would you say are the best parts of your life?",
+        "questionKey": "qualitative_best_parts"
+        },
+        {
+        "answer": "I would like to continue improving my balance and overall stamina, and I would also like to focus more on maintaining mental sharpness through learning and creative activities.",
+        "answerTime": 1768946579000,
+        "question": "Please share one to two areas you would like to enhance or improve with your health and well-being:",
+        "questionKey": "qualitative_improvement_areas"
+        },
+        {
+        "answer": "Over the next year, I would like to continue traveling in small, manageable ways, deepen my friendships, and remain independent and engaged. Ideally, I see myself feeling physically strong, mentally clear, and actively participating in the community while enjoying each day with gratitude.",
+        "answerTime": 1768946579000,
+        "question": "Reflecting on what you've done in your lifetime thus far and where you are now, what else would you like to experience? Where do you see yourself ideally in one year?",
+        "questionKey": "qualitative_life_experience"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I am actively working to maintain or improve my overall well-being.",
+        "questionKey": "quality_of_life_active_work",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "4",
+        "answerTime": 1768946579000,
+        "question": "My quality of life has maintained or improved over the past year.",
+        "questionKey": "quality_of_life_improvement",
+        "responseOption": "Agree"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I am satisfied with my overall quality of life.",
+        "questionKey": "quality_of_life_satisfaction",
+        "responseOption": "Strongly Agree"
+        },
+        {
+        "answer": "5",
+        "answerTime": 1768946579000,
+        "question": "I am actively working to stay connected and involved in what matters to me.",
+        "questionKey": "staying_connected",
+        "responseOption": "Strongly Agree"
+        }
+    ],
+    "startTime": 1768945340000,
+    "surveyKey": "successful_aging_connections"
+}
