@@ -369,16 +369,34 @@ class LocationMlExampleMicroservice(Intelligence):
         """
         return
 
-    def user_role_updated(self, botengine, user_id, alert_category, location_access, previous_alert_category,
-                          previous_location_access):
+    def user_role_updated(
+        self,
+        botengine,
+        location_id,
+        user_id,
+        role,
+        previous_role,
+        category,
+        previous_category,
+        location_access,
+        previous_location_access,
+        residency,
+        previous_residency,
+    ):
         """
         A user changed roles
         :param botengine: BotEngine environment
-        :param user_id: User ID that changed roles
-        :param alert_category: User's current alert/communications category (1=resident; 2=supporter)
-        :param location_access: User's access to the location and devices. (0=None; 10=read location/device data; 20=control devices and modes; 30=update location info and manage devices)
-        :param previous_alert_category: User's previous category, if any
+        :param location_id: Location ID
+        :param user_id: User ID that changed
+        :param role: ROLE_TYPE_* Application-layer agreed upon role integer which may auto-configure location_access and alert category
+        :param previous_role: User's previous role, if any
+        :param category: ALERT_CATEGORY_* User's current alert/communications category (1=resident; 2=supporter)
+        :param previous_category: User's previous category, if any
+        :param location_access: LOCATION_ACCESS_* User's current access to the location
         :param previous_location_access: User's previous access to the location, if any
+        :param residency: RESIDENCY_* User's current residency status
+        :param previous_residency: User's previous residency status, if any
+        :return:
         """
         return
 

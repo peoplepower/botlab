@@ -95,6 +95,7 @@ file 'LICENSE.txt', which is part of this source code package.
 #     ]
 # }
 
+CARE_DAILY_AI_MODEL_SET_FIT = "setfit"
 
 def add_cloud_messages(
     botengine, location_object, messages_list: list, by_user: bool = False
@@ -164,3 +165,22 @@ def update_cloud_messages(botengine, updated_messages_list: list):
     botengine.update_cloud_messages(content)
 
     return
+
+def submit_message_prioritization_request(botengine, location_object, key, ai_params):
+    """
+    Submit a message prioritization request to SetFit microservice
+
+    :param botengine: BotEngine environment
+    :param location_object: Location object
+    :param key: Key to identify this request
+    :param ai_params: Content to submit
+    """
+    botengine.get_logger(f"{__name__}").info(">submit_message_prioritization_request()")
+    body = {
+        "key": key,
+        "ai_params": ai_params,
+    }
+
+    # Attempt to use SetFit model for prioritization. If it fails, raise exceptions.
+    location_object.distribute_datastream_message(botengine, "submit_set_fit_message_prioritization", body, internal=True, external=False, raise_exceptions=True)
+    botengine.get_logger(f"{__name__}").info("<submit_message_prioritization_request()")

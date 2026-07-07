@@ -5,6 +5,5 @@ MICROSERVICES = {
             "module": "intelligence.engage_kit_cloud.location_engage_kit_cloud_microservice",
             "class": "LocationEngageKitCloudMicroservice"
         }
-
     ]
 }

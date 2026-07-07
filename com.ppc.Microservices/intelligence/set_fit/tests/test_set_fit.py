@@ -6,6 +6,9 @@ import utilities.utilities as utilities
 
 from intelligence.chat_gpt.location_chatgpt_microservice import *
 
+import signals.ai as ai
+import utilities.genai as genai
+
 from unittest.mock import patch, MagicMock
 
 class TestSetFitMicroservice():

@@ -13,6 +13,7 @@ import signals.analytics as analytics
 import signals.machinelearning as machinelearning
 import properties
 
+from devices.device import Device
 from devices.entry.entry import EntryDevice
 from devices.motion.motion import MotionDevice
 from devices.radar.radar import RadarDevice
@@ -293,15 +294,22 @@ class LocationDataRequestMicroservice(Intelligence):
 
         botengine.save_variable("data_request_timestamp", botengine.get_timestamp())
         analytics.track(botengine, self.parent, "data_request_ready", properties={"reference": reference})
+        
+        try:
+            # TODO: Update the function parameters to describe the data request type then process accordingly
+            for d in csv_dict:
+                if not utilities._isinstance(d, Device):
+                    continue
+                botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|async_data_request_ready() {} = {} bytes".format(d, len(csv_dict[d])))
 
-        for d in csv_dict:
-            botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|async_data_request_ready() {} = {} bytes".format(d, len(csv_dict[d])))
-
-            if EXPORT_CSV_TO_LOCAL_FILES:
-                filename = "{}_{}.csv".format(d.device_id, d.device_type)
-                with open(filename, "w") as text_file:
-                    botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|async_data_request_ready() Saving CSV data to {} ...".format(filename))
-                    text_file.write(csv_dict[d])
+                if EXPORT_CSV_TO_LOCAL_FILES:
+                    filename = "{}_{}.csv".format(d.device_id, d.device_type)
+                    with open(filename, "w") as text_file:
+                        botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|async_data_request_ready() Saving CSV data to {} ...".format(filename))
+                        text_file.write(csv_dict[d])
+        except Exception as e:
+            import traceback
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").warning("|async_data_request_ready() Error processing CSV data: {}; trace={}".format(e, traceback.format_exc()))
 
         # Split-phase logic: Store reference for post-processing
         # Load existing postprocess list (might be None or a list)

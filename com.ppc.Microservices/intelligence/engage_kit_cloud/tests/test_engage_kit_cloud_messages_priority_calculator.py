@@ -1,15 +1,14 @@
+import unittest
+
+from intelligence.engage_kit_cloud.types.messages_priority_calculator import (
+    PriorityCalculator,
+)
+from signals.engage_kit_cloud import CloudTopicPriority  # type: ignore
 
 from botengine_pytest import BotEnginePyTest
 
 
-from intelligence.engage_kit_cloud.types.messages_priority_calculator import *
-
-
-import unittest
-from unittest.mock import MagicMock, patch
-
 class TestEngageKitCloudMessagesPriorityCalculator(unittest.TestCase):
-
     def test_engage_kit_cloud_messages_priority_calculator(self):
         botengine = BotEnginePyTest({})
 
@@ -23,14 +22,8 @@ class TestEngageKitCloudMessagesPriorityCalculator(unittest.TestCase):
         content_2 = "I am home"
         content_3 = "Can we talk?"
         phrases = [
-            {
-                "text": content_1,
-                "scores": [0.1, 0.2, 0.3]
-            },
-            {
-                "text": content_2,
-                "scores": [0.1, 0.2, 0.15]
-            }
+            {"text": content_1, "scores": [0.1, 0.2, 0.3]},
+            {"text": content_2, "scores": [0.1, 0.2, 0.15]},
         ]
 
         assert mut(content_1) == CloudTopicPriority.UNSET

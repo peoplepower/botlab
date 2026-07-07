@@ -126,7 +126,7 @@ class LocationGoalsMicroservice(Intelligence):
             goal = self._remove_or_restore_goal(botengine, goal_id, goal, content)
 
         # Update the goal
-        elif goal:
+        elif goal and not content.get("added", False):
             goal = self._update_goal(botengine, goal_id, goal, content)
 
         # New goal
@@ -172,9 +172,8 @@ class LocationGoalsMicroservice(Intelligence):
                     f"<_add_goal() Missing required fields {missing_fields} in new goal {goal_id}"
                 )
                 return None
-            goal["created_timestamp_ms"] = content.get(
-                "created_timestamp_ms", botengine.get_timestamp()
-            )
+            # Override creation timestamp to now.
+            goal["created_timestamp_ms"] = botengine.get_timestamp()
             goal["completed"] = False
             botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
                 f"|_add_goal() New goal {goal_id} added"

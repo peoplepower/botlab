@@ -1,33 +1,36 @@
-'''
+"""
 Created on 05/10/2023
 
 This file is subject to the terms and conditions defined in the
 file 'LICENSE.txt', which is part of this source code package.
 
 @author: David Moss
-'''
-from intelligence.intelligence import Intelligence
+"""
 
-import utilities.utilities as utilities
-import signals.analytics as analytics
-import signals.engage_kit_cloud as engage_kit_cloud
-import properties
 import json
-from pydantic import TypeAdapter
 from typing import List
-from datetime import datetime
-import signals.ai as ai
-import utilities.genai as genai
 
-from intelligence.engage_kit_cloud.types.messages_cloud_buffer import MessagesCloudBuffer
-from intelligence.engage_kit_cloud.types.messages_priority_calculator import PriorityCalculator
-from intelligence.engage_kit_cloud.types.cloud_model import BotMessage, CloudMessageStatus
+import signals.engage_kit_cloud as engage_kit_cloud  # type: ignore
+from intelligence.engage_kit_cloud.types.messages_cloud_buffer import (
+    MessagesCloudBuffer,
+)
+from intelligence.engage_kit_cloud.types.messages_priority_calculator import (
+    PriorityCalculator,
+)
+from intelligence.intelligence import Intelligence  # type: ignore
+from pydantic import TypeAdapter
+from signals.engage_kit_cloud import (  # type: ignore
+    BotMessage,
+    CloudMessageStatus,
+    submit_message_prioritization_request,
+)
 
 # Seconds between each cloud message delivery check
 CLOUD_SCHEDULE_INTERVAL_S = 60
 
 # SetFit Key
 SETFIT_KEY = "engage_kit_cloud"
+
 
 class LocationEngageKitCloudMicroservice(Intelligence):
     """
@@ -49,7 +52,9 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         self.messages = []
 
         # buffer for active messages priorities based on time to start and priority of topic
-        self.messages_buffer = MessagesCloudBuffer(botengine, PriorityCalculator.custom_priority_calculation)
+        self.messages_buffer = MessagesCloudBuffer(
+            botengine, PriorityCalculator.custom_priority_calculation
+        )
 
         pass
 
@@ -74,7 +79,7 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         """
 
         # Added: 6/27/2024
-        if not hasattr(self, 'messages'):
+        if not hasattr(self, "messages"):
             self.messages = []
         return
 
@@ -87,7 +92,9 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         """
         return
 
-    def occupancy_status_updated(self, botengine, status, reason, last_status, last_reason):
+    def occupancy_status_updated(
+        self, botengine, status, reason, last_status, last_reason
+    ):
         """
         AI Occupancy Status updated
         :param botengine: BotEngine
@@ -174,7 +181,15 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         """
         return
 
-    def file_uploaded(self, botengine, device_object, file_id, filesize_bytes, content_type, file_extension):
+    def file_uploaded(
+        self,
+        botengine,
+        device_object,
+        file_id,
+        filesize_bytes,
+        content_type,
+        file_extension,
+    ):
         """
         A device file has been uploaded
         :param botengine: BotEngine environment
@@ -194,16 +209,34 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         """
         return
 
-    def user_role_updated(self, botengine, user_id, role, alert_category, location_access, previous_alert_category,
-                          previous_location_access):
+    def user_role_updated(
+        self,
+        botengine,
+        location_id,
+        user_id,
+        role,
+        previous_role,
+        category,
+        previous_category,
+        location_access,
+        previous_location_access,
+        residency,
+        previous_residency,
+    ):
         """
         A user changed roles
         :param botengine: BotEngine environment
-        :param user_id: User ID that changed roles
-        :param alert_category: User's current alert/communications category (1=resident; 2=supporter)
-        :param location_access: User's access to the location and devices. (0=None; 10=read location/device data; 20=control devices and modes; 30=update location info and manage devices)
-        :param previous_alert_category: User's previous category, if any
+        :param location_id: Location ID
+        :param user_id: User ID that changed
+        :param role: ROLE_TYPE_* Application-layer agreed upon role integer which may auto-configure location_access and alert category
+        :param previous_role: User's previous role, if any
+        :param category: ALERT_CATEGORY_* User's current alert/communications category (1=resident; 2=supporter)
+        :param previous_category: User's previous category, if any
+        :param location_access: LOCATION_ACCESS_* User's current access to the location
         :param previous_location_access: User's previous access to the location, if any
+        :param residency: RESIDENCY_* User's current residency status
+        :param previous_residency: User's previous residency status, if any
+        :return:
         """
         return
 
@@ -259,42 +292,59 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         :param csv_dict: { device_object: 'csv data string' }
         """
         return
-    
+
     def messages_updated(self, botengine, messages):
         """
         List of Messages were updated
         :param botengine: BotEngine environment
         :param messages: Message objects
         """
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(">messages_updated()")
-        
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            ">messages_updated()"
+        )
+
         # empty buffer
         self.messages_buffer.clear_buffer(botengine)
 
         # TODO: Handle schedule type 1 (recurring).  Remove for now.
-        messages = [message for message in messages if message['scheduleType'] == 0 and not message.get('userId')]
+        messages = [
+            message
+            for message in messages
+            if message["scheduleType"] == 0 and not message.get("userId")
+        ]
 
         # Validate the messages
         ta = TypeAdapter(List[BotMessage])
         self.messages = ta.validate_python(messages)
-    
+
         # Submit the messages for prioritization
-        ai_params = genai.care_daily_ai_message_prioritization(botengine, phrases=[message.priority_phrase() for message in self.messages if message.status == CloudMessageStatus.READY.value])
+        phrases = [
+            message.priority_phrase()
+            for message in self.messages
+            if message.status == CloudMessageStatus.READY.value
+        ]
+        if len(phrases) == 0:
+            ai_params = {}
+        else:
+            ai_params = {"phrases": phrases}
         try:
-            ai.submit_message_prioritization_request(
-                botengine, 
-                self.parent, 
-                key=SETFIT_KEY,
-                ai_params=ai_params)
+            submit_message_prioritization_request(
+                botengine, self.parent, key=SETFIT_KEY, ai_params=ai_params
+            )
         except Exception as e:
-            botengine.get_logger(f"{__name__}.{__class__.__name__}").error("|messages_updated() Error submitting message prioritization request: {}".format(e))
-            
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").error(
+                "|messages_updated() Error submitting message prioritization request: {}".format(
+                    e
+                )
+            )
+
             # Proceed with the messages without AI prioritization
             self._process_set_fit_phrase_prioritization(botengine, [])
-        
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info("<messages_updated()")
 
-    
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "<messages_updated()"
+        )
+
     def ai(self, botengine, content):
         """
         The input data is a list of phrases (sentences). The response from the AI application contains the scorings of each phrase.
@@ -304,7 +354,7 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         {
             "key": "request key",
             "phrases" : [{
-                "text": "Emergency situation", 
+                "text": "Emergency situation",
                 "scores": [0.06117, 0.04631, 0.89252]
             }]
         }
@@ -313,39 +363,74 @@ class LocationEngageKitCloudMicroservice(Intelligence):
         :param botengine: BotEngine environment
         :param content: Content of the message
         """
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(">ai() content={}".format(content))
-        if content.get('key', '') != SETFIT_KEY:
-            botengine.get_logger(f"{__name__}.{__class__.__name__}").info("<ai() Missing or non-matching key '{}'".format(content.get('key', 'NONE')))
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            ">ai() content={}".format(content)
+        )
+        if content.get("key", "") != SETFIT_KEY:
+            botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+                "<ai() Missing or non-matching key '{}'".format(
+                    content.get("key", "NONE")
+                )
+            )
             return
-        
+
         # Process the AI prioritization of the phrases
-        self._process_set_fit_phrase_prioritization(botengine, content.get('phrases', []))
+        self._process_set_fit_phrase_prioritization(
+            botengine, content.get("phrases", [])
+        )
 
         botengine.get_logger(f"{__name__}.{__class__.__name__}").info("<ai()")
-        
+
     def _process_set_fit_phrase_prioritization(self, botengine, phrases):
         """
         Process the AI prioritization of the phrases
         :param botengine: BotEngine environment
         :param phrases: List of phrases to prioritize
         """
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(">_process_set_fit_phrase_prioritization()")
-        
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|_process_set_fit_phrase_prioritization() messages={}".format(self.messages))
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            ">_process_set_fit_phrase_prioritization()"
+        )
+
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "|_process_set_fit_phrase_prioritization() messages={}".format(
+                self.messages
+            )
+        )
 
         # Update the messages with the AI scores
-        self.messages_buffer.add_messages_with_priority(botengine, self.messages, phrases)
+        self.messages_buffer.add_messages_with_priority(
+            botengine, self.messages, phrases
+        )
 
         # Update the cloud with the message delivery schedule based on the AI prioritization
-        midnight_timestamp_s = int(self.parent.get_midnight_last_night(botengine).timestamp())
+        midnight_timestamp_s = int(
+            self.parent.get_midnight_last_night(botengine).timestamp()
+        )
         current_timestamp_s = int(self.parent.get_local_datetime(botengine).timestamp())
-        scheduled_messages = self.messages_buffer.get_scheduled_messages_with_adjusted_delivery_times(botengine, CLOUD_SCHEDULE_INTERVAL_S, midnight_timestamp_s, current_timestamp_s)
-        scheduled_messages_list = [json.loads(message.model_dump_json(by_alias=True, indent=4, exclude_none=True)) for
-                              message in scheduled_messages]
-        
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info("|_process_set_fit_phrase_prioritization() scheduled_messages_list={}".format(scheduled_messages_list))
+        scheduled_messages = (
+            self.messages_buffer.get_scheduled_messages_with_adjusted_delivery_times(
+                botengine,
+                CLOUD_SCHEDULE_INTERVAL_S,
+                midnight_timestamp_s,
+                current_timestamp_s,
+            )
+        )
+        scheduled_messages_list = [
+            json.loads(
+                message.model_dump_json(by_alias=True, indent=4, exclude_none=True)
+            )
+            for message in scheduled_messages
+        ]
+
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "|_process_set_fit_phrase_prioritization() scheduled_messages_list={}".format(
+                scheduled_messages_list
+            )
+        )
 
         engage_kit_cloud.update_cloud_messages(botengine, scheduled_messages_list)
 
-        botengine.get_logger(f"{__name__}.{__class__.__name__}").info("<_process_set_fit_phrase_prioritization()")
+        botengine.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "<_process_set_fit_phrase_prioritization()"
+        )
         return
