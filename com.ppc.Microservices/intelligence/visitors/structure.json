@@ -1,0 +1,5 @@
+{
+  "microservices": [
+    "com.ppc.Microservices/intelligence/daylight"
+  ]
+}

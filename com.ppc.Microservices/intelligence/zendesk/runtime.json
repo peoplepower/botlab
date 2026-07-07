@@ -1,0 +1,10 @@
+{
+  "version": {
+    "trigger": 256,
+    "dataStreams": [
+      {
+        "address": "zendesk_status"
+      }
+    ]
+  }
+}
