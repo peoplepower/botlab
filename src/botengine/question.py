@@ -273,6 +273,7 @@ class Question:
                     try:
                         logger.warning("|_form_json_question() Malformed question response option {}: {}".format(body, option))
                     except Exception:
+                        print("Malformed question response option {}: {}".format(body, option))
                         pass
                     body["responseOptions"].append(option)
                 else:

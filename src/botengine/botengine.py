@@ -34,8 +34,8 @@ import urllib.parse
 # Our default server address
 DEFAULT_BASE_SERVER_URL = "app.peoplepowerco.com"
 
-__version__ = "9.6.11"
-__date__ = "2025-12-29"
+__version__ = "9.7.6"
+__date__ = "2026-06-26"
 
 DEBUG = 0
 TESTRUN = 0
@@ -104,6 +104,10 @@ def _playback_logger_timestamp(self, record, datefmt=None):
 
     import pytz
 
+    if playback_timestamp_ms == 0:
+        # Fall back to current time if playback timestamp is not set
+        return datetime.datetime.now()
+
     return datetime.datetime.fromtimestamp(
         playback_timestamp_ms / 1000.0, pytz.timezone(playback_timezone)
     )
@@ -140,10 +144,17 @@ def _create_logger(
             if ".".join(components[: i + 1]) in _bot_loggers:
                 return logger
     logger.setLevel(level)
+
+    class _ShortNameFormatter(logging.Formatter):
+        def format(self, record):
+            record.name = record.name.rsplit(".", 1)[-1]
+            return super().format(record)
+
     fmt_string = "%(asctime)s %(levelname)-8s %(name)-12s %(message)s"
     if _bot_logger_config.get("fmt_string"):
         fmt_string = _bot_logger_config.get("fmt_string")
     fmt = logging.Formatter(fmt_string)
+    console_fmt = _ShortNameFormatter(fmt_string)
 
     if filename is not None:
         if session_id is None:
@@ -167,7 +178,7 @@ def _create_logger(
             # Just in case reconfigure fails, silently fallback
             pass
         console = logging.StreamHandler(stream)
-        console.setFormatter(fmt)
+        console.setFormatter(console_fmt)
         logger.addHandler(console)
 
     if not console_mode and not filename:
@@ -1057,11 +1068,14 @@ class BotEngine:
                     else:
                         self.question_answered.user_id = None
 
-        # Extract custom organization bot properties
+        # Extract custom organization bot properties from parent sub-type all locations
         if "access" in inputs:
             for access in inputs["access"]:
                 try:
-                    properties = access["location"]["organization"]["properties"]
+                    location = access["location"]
+                    if location.get("subType", BotEngine.LOCATION_SUB_TYPE_ALL) != BotEngine.LOCATION_SUB_TYPE_ALL:
+                        continue
+                    properties = location["organization"]["properties"]
                     # Set each organization property but remove the static bot identifier "bot." from the beginning
                     for key in properties:
                         # Try to normalize the value
@@ -1326,6 +1340,10 @@ class BotEngine:
         """
         :return: The organization ID for this bot
         """
+        if self.get_bot_type() == BotEngine.BOT_TYPE_ORGANIZATION:
+            organization = self.get_organization_info()
+            return organization.get("organizationId", None)
+            
         info = self.get_location_info()
         if "location" in info:
             if "organizationId" in info["location"]:
@@ -1337,23 +1355,19 @@ class BotEngine:
         """
         :return: The name of the organization this location belongs to.
         """
-        info = self.get_location_info()
-        if "location" in info:
-            if "organization" in info["location"]:
-                if "organizationName" in info["location"]["organization"]:
-                    return info["location"]["organization"]["organizationName"]
-
-        return "Organization ID {}".format(self.get_organization_id())
+        organization = self.get_organization_info()
+        if organization is not None:
+            return organization.get("organizationName", f"Organization ID {self.get_organization_id()}")
+        
+        return None
 
     def get_organization_signup_code(self):
         """
         :return: The sign-up code (short domain name) of the organization this location belongs to. Or None if we don't have it for some reason.
         """
-        info = self.get_location_info()
-        if "location" in info:
-            if "organization" in info["location"]:
-                if "domainName" in info["location"]["organization"]:
-                    return info["location"]["organization"]["domainName"]
+        organization = self.get_organization_info()
+        if organization is not None:
+            return organization.get("domainName", None)
 
         return None
 
@@ -1681,18 +1695,22 @@ class BotEngine:
                     "phone": "1234567890",
                     "phoneType": 1,
                     "smsStatus": 1,
+                    "roleId": 3,
+                    "language": "en",
+                    "accessibility": 2,
+                    "birthDate": "1980-01-01",
+                    "gender": 1,
+                    "avatarFileId": 123,
                     "locationAccess": 10,
                     "temporary": True,
                     "accessEndDate": "2019-01-29T02:45:30Z",
                     "accessEndDateMs": 1548747995000,
                     "category": 1,
                     "role": 1,
+                    "residency": 1,
+                    "callOrder": 2,
+                    "hidden": False,
                     "smsPhone": "1234567899",
-                    "language": "en",
-                    "avatarFileId": 123,
-                    "schedules": [
-                        {"daysOfWeek": 127, "startTime": 10800, "endTime": 20800}
-                    ],
                 },
                 {
                     "id": 124,
@@ -1718,9 +1736,6 @@ class BotEngine:
                     "smsPhone": "1234567899",
                     "language": "en",
                     "avatarFileId": 123,
-                    "schedules": [
-                        {"daysOfWeek": 127, "startTime": 10800, "endTime": 20800}
-                    ],
                 },
             ]
 
@@ -3297,63 +3312,122 @@ class BotEngine:
         param_name_list=None,
         reference=None,
         index=None,
-        ordered=1,
+        search_by=None,
+        location_tags=None,
+        device_tags=None,
+        device_types=None,
+        names=None,
+        aggregation=None,
+        ordered=None,
+        compression=None,
     ):
         """
-        Selecting a large amount of data from the database can take a significant amount of time and impact server
-        performance. To avoid this long waiting period while executing bots, a bot can submit a request for all the
-        data it wants from this location asynchronously. The server gathers all the data on its own time, and then
-        triggers the bot with trigger 2048. Your bot must include trigger 2048 to receive the trigger.
+        Selecting large amount of data from the database can take significant time. To avoid this long waiting 
+        period a bot can submit requests for all data to the server asynchronously. When the requests will be 
+        completed, the bot will be triggered with the trigger 2048 "Data Request".
 
-        Selected data becomes available as a file in CSV format, compressed by LZ4, and stored for one day.
-        The bot receives direct access to this file.
+        Selected data will be uploaded to S3 in CSV format (compressed) and stored for one day. The bot will 
+        receive access to it.
 
         You can call this multiple times to extract data out of multiple devices. The request will be queued up and
         the complete set of requests will be flushed at the end of this bot execution.
 
         :param type: DATA_REQUEST_TYPE_*, default (1) is key/value device parameters
-        :param device_id: Device ID to download historical data from
-        :param oldest_timestamp_ms: Oldest timestamp in milliseconds
-        :param newest_timestamp_ms: Newest timestamp in milliseconds
-        :param param_name_list: List of parameter names to download
+        :param device_id: Device ID to download historical data from. Required for types 1,2,8,9
+        :param oldest_timestamp_ms: Oldest timestamp in milliseconds. Required for types 1,2,5,7,8,9,10
+        :param newest_timestamp_ms: Newest timestamp in milliseconds. Required for types 1,2,5,7,8,9,10
+        :param param_name_list: List of parameter names to download. Optional for type 1
         :param reference: Reference so when this returns we know who it's for
-        :param index: Index to download when parameters are available with multiple indices
-        :param ordered: 1=Ascending (default); -1=Descending.
+        :param index: Index to download when parameters are available with multiple indices. Optional for type 1
+        :param search_by: Search string optional for data type 3. Use '*' for wildcard.
+        :param location_tags: Location search tags optional for data type 3
+        :param device_tags: Device search tags optional for data type 3
+        :param device_types: Device search types optional for data types 3,6
+        :param names: Location state names required for the data type 10
+        :param aggregation: Data aggregation by: 0 = None; 1 = Hours; 2 = Days; 3 = Months; 4 = 7-day weeks; 5 = 5-day weeks
+            required for data type 8
+        :param ordered: 1=Ascending (default); -1=Descending. Optional for data types 1,2,4,5,9
+        :param compression: Data compression. 0 = LZ4, default; 1 = ZIP; 2 = none
         """
         self.get_logger(f"{'botengine'}.{__class__.__name__}").debug(
             "|request_data() Requesting data from {} to {} for device {} with param_name_list={}".format(
                 oldest_timestamp_ms, newest_timestamp_ms, device_id, param_name_list
             )
         )
-        request = {"type": type}
-
-        if device_id is not None:
-            request["deviceId"] = device_id
-
-        if oldest_timestamp_ms is not None:
-            request["startTime"] = oldest_timestamp_ms
-        else:
-            # Go back a maximum 1 millisecond less than a year ago.
-            request["startTime"] = self.get_timestamp() - 31535999999
-
-        if newest_timestamp_ms is not None:
-            request["endTime"] = newest_timestamp_ms
-
-        else:
-            request["endTime"] = self.get_timestamp()
-
-        if param_name_list is not None:
-            request["paramNames"] = param_name_list
-
-        if reference is not None:
-            request["key"] = reference
-
-        if index is not None:
-            request["index"] = index
-
-        if ordered is not None:
-            request["ordered"] = ordered
-
+        request = {
+            "type": type,
+            "key": reference,
+            "deviceId": device_id,
+            "startTime": oldest_timestamp_ms,
+            "endTime": newest_timestamp_ms,
+            "paramNames": param_name_list,
+            "index": index,
+            "searchBy": search_by,
+            "location_tags": location_tags,
+            "device_tags": device_tags,
+            "device_types": device_types,
+            "names": names,
+            "aggregation": aggregation,
+            "ordered": ordered,
+            "compression": compression,
+        }
+        request = {k: v for k, v in request.items() if v is not None}
+        required_mapping = {
+            1: ["type", "deviceId", "startTime", "endTime"],
+            2: ["type", "deviceId", "startTime", "endTime"],
+            3: ["type",],
+            4: ["type",],
+            5: ["type", "startTime", "endTime"],
+            6: ["type",],
+            7: ["type", "startTime", "endTime"],
+            8: ["type", "deviceId", "startTime", "endTime", "aggregation"],
+            9: ["type", "deviceId", "startTime", "endTime"],
+            10: ["type", "startTime", "endTime", "names"]
+        }
+        optional_mapping = {
+            1: ["ordered", "key", "compression", "paramNames", "index"],
+            2: ["ordered", "key", "compression"],
+            3: ["searchBy", "location_tags", "device_tags", "device_types", "key", "compression"],
+            4: ["ordered", "key", "compression"],
+            5: ["ordered", "key", "compression"],
+            6: ["device_types", "key", "compression"],
+            7: ["key", "compression"],
+            8: ["key", "compression"],
+            9: ["ordered", "key", "compression"],
+            10: ["key", "compression"],
+        }
+        # Check that all required/optional fields for the given type are included
+        try:
+            if request["type"] not in list(required_mapping.keys()):
+                raise ValueError(f"Invalid request type {request['type']}")
+            for required_field in required_mapping[request["type"]]:
+                if required_field not in request:
+                    if required_field == "startTime":
+                        # startTime is required but we can default it to a year ago if not provided
+                        self.get_logger(f"{'botengine'}.{__class__.__name__}").warning(
+                            f"Missing required field 'startTime' for request type {request['type']}. Defaulting to a year ago."
+                        )
+                        request["startTime"] = self.get_timestamp() - 365 * 24 * 3600 * 1000
+                        continue
+                    elif required_field == "endTime":
+                        # endTime is required but we can default it to now if not provided
+                        self.get_logger(f"{'botengine'}.{__class__.__name__}").warning(
+                            f"Missing required field 'endTime' for request type {request['type']}. Defaulting to now."
+                        )
+                        request["endTime"] = self.get_timestamp()
+                        continue
+                    raise ValueError(f"Missing required field '{required_field}' for request type {request['type']}")
+            all_fields = optional_mapping[request["type"]] + required_mapping[request["type"]]
+            for field in request:
+                if field not in all_fields:
+                    raise ValueError(f"Field '{field}' is not valid for request type {request['type']}")
+        except Exception as e:
+            import traceback
+            self.get_logger(f"{'botengine'}.{__class__.__name__}").error(
+                f"|request_data() {e} trace={traceback.format_exc()}"
+            )            
+            return
+            
         self.data_requests.append(request)
 
     def flush_asynchronous_requests(self):
@@ -3446,20 +3520,25 @@ class BotEngine:
     # ===========================================================================
     # Device Properties
     # ===========================================================================
-    def set_device_property(self, device_id, name, value, index=None):
+    def set_device_property(self, device_id, location_id, name, value, index=None):
         """
         Set a single device property from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-activation-info/set-device-properties
 
         :param device_id: Device ID
-        :param properties: Device properties {"property": [{"name":"size", "value":"10"}, {xxx}]}
+        :param location_id: Location ID
+        :param name: Property name
+        :param value: Property value (string or dict)
+        :param index: Optional index for the property if there are multiple properties with the same name
         """
-        params = {"locationId": self.get_location_id(device_id=device_id)}
+        params = {"locationId": location_id}
 
-        device_property = {"name": name, "value": value}
-
-        if index is not None:
-            device_property["index"] = index
+        device_property = {
+            "name": name, 
+            "value": value,
+            "index": index,
+        }
+        device_property = {k: v for k, v in device_property.items() if v is not None}
 
         body = {"property": [device_property]}
 
@@ -3477,22 +3556,23 @@ class BotEngine:
         j = json.loads(r.text)
         _check_for_errors(j)
 
-    def get_device_property(self, device_id, name=None, index=None):
+    def get_device_property(self, device_id, location_id, name=None, index=None):
         """
         Get device properties from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-properties/get-device-properties
 
         :param device_id: Device ID
+        :param location_id: Location ID
         :param name: Optional name to search for
         :param index: Optional index to search for
         """
-        params = {"locationId": self.get_location_id(device_id=device_id)}
-
-        if name is not None:
-            params["name"] = name
-
-        if index is not None:
-            params["index"] = index
+        params = {
+            "locationId": location_id,
+            "name": name,
+            "index": index,
+        }
+        params = {k: v for k, v in params.items() if v is not None}
+        
         self.get_logger(f"{'botengine'}.{__class__.__name__}").debug(
             "|get_device_property() device_id={} params={}".format(device_id, params)
         )
@@ -3506,19 +3586,22 @@ class BotEngine:
             return j["properties"]
         return []
 
-    def delete_device_property(self, device_id, name, index=None):
+    def delete_device_property(self, device_id, location_id, name, index=None):
         """
         Delete device properties from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-properties/get-device-properties
 
         :param device_id: Device ID
-        :param property_name: Property name
+        :param location_id: Location ID
+        :param name: Property name
+        :param index: Optional index to search for
         """
-        # TODO: Delete property on sub type location?
-        params = {"locationId": self.get_location_id(device_id=device_id), "name": name}
-
-        if index is not None:
-            params["index"] = index
+        params = {
+            "locationId": location_id, 
+            "name": name,
+            "index": index,
+        }
+        params = {k: v for k, v in params.items() if v is not None}
 
         self.get_logger(f"{'botengine'}.{__class__.__name__}").debug(
             "|delete_device_property() device_id={} params={}".format(device_id, params)
@@ -3811,7 +3894,7 @@ class BotEngine:
 
         if name is not None and self.services is not None:
             for service in self.services:
-                if name in service["serviceName"]:
+                if name in service.get("name", service.get("serviceName", "")):
                     return True
 
         return False
@@ -4050,8 +4133,7 @@ class BotEngine:
         :param user_id: Used with Organizational Apps - confine tags to a specific user
         """
         if self.playback:
-            return []
-
+            return playback_get_tags(tag_type=tag_type, tag_id=tag_id, user_id=user_id)
         params = {}
 
         if user_id is not None:
@@ -4587,20 +4669,17 @@ class BotEngine:
         :return:
         """
         from botengine.color import Color
+        saved_timers = self.load_variable(TIMERS_VARIABLE_NAME)
+        system_time = self.get_system_time_ms()
+        next_timer_ms = saved_timers[0][0] if saved_timers else None
+        next_timer_delta = (next_timer_ms - system_time) if next_timer_ms else None
+
         self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
             ">_inspect_timer_stack() "
-            + Color.PURPLE 
-            + "TIMER STACK:" 
+            + Color.PURPLE
+            + f"Timer Stack: {len(saved_timers)} timer(s); next fires in {next_timer_delta}ms"
             + Color.END
         )
-        saved_timers = self.load_variable(TIMERS_VARIABLE_NAME)
-        for t in saved_timers:
-            self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
-                "|_inspect_timer_stack() "
-                + Color.PURPLE 
-                + "t{}\t{}".format(self.get_timestamp() - t[0], t) 
-                + Color.END
-            )
 
     def async_execute_again_in_n_seconds(self, seconds):
         """
@@ -4847,7 +4926,13 @@ class BotEngine:
 
         :param question: Question to ask, created by the generate_question method
         """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
+            ">ask_question() key_identifier={}".format(question.key_identifier)
+        )
         self.questions_to_ask[question.key_identifier] = question
+        if self.playback:
+            global playback_questions
+            playback_questions[question.key_identifier] = question._form_json_question()
 
     def delete_question(self, question):
         """
@@ -4857,6 +4942,9 @@ class BotEngine:
 
         :param question: Question to delete
         """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
+            ">delete_question() key_identifier={}".format(question.key_identifier)
+        )
         if question._question_id is None:
             # Then just don't ask the question
             if question.key_identifier in self.questions_to_ask:
@@ -4870,6 +4958,10 @@ class BotEngine:
                 self.save_variable(QUESTIONS_VARIABLE_NAME, saved_questions)
 
         self.questions_to_delete[question.key_identifier] = question
+        if self.playback:
+            global playback_questions
+            if question.key_identifier in playback_questions:
+                del playback_questions[question.key_identifier]
 
     def flush_questions(self):
         """
@@ -4889,6 +4981,10 @@ class BotEngine:
 
         # Delete questions
         for q_id in self.questions_to_delete:
+            self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
+                "|flush_questions() deleting {}".format(q_id)
+            )
+
             question = self.questions_to_delete[q_id]
 
             if self.playback:
@@ -4910,10 +5006,14 @@ class BotEngine:
         # Ask questions
         if self.playback:
             for q_id in self.questions_to_ask:
+
+                self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
+                    "|flush_questions() asking {}".format(q_id)
+                )
+
                 question = self.questions_to_ask[q_id]
                 question.answer_status = BotEngine.ANSWER_STATUS_QUEUED
                 saved_questions[question.key_identifier] = question
-
             self.save_variable(QUESTIONS_VARIABLE_NAME, saved_questions)
             self.questions_to_delete = {}
             self.questions_to_ask = {}
@@ -4933,7 +5033,7 @@ class BotEngine:
 
                 body["questions"].append(json_question)
 
-            self.get_logger(f"{'botengine'}.{__class__.__name__}").info(
+            self.get_logger(f"{'botengine'}.{__class__.__name__}").debug(
                 "|flush_questions() questions={}".format(
                     json.dumps(body, sort_keys=True)
                 )
@@ -4942,7 +5042,7 @@ class BotEngine:
             response = json.loads(r.text)
             self.get_logger(
                 f"{'botengine'}.{__class__.__name__}"
-            ).info(
+            ).debug(
                 "|flush_questions() | response={}".format(
                     json.dumps(response, sort_keys=True)
                 )
@@ -5565,16 +5665,17 @@ class BotEngine:
             STATE_KEY_SUB_LOCATION: sub_location,
         }
 
-    def get_state(self, address, timestamp_ms=None):
+    def get_state(self, address, timestamp_ms=None, location_id=None):
         """
         Get UI content by address. If a timestamp is provided, time-series states will return exactly 1 value
         at the exact given timestamp_ms.
 
         :param address: Address to retrieve information from
         :param timestamp_ms: Optional timestamp for time-based state variables
+        :param location_id: Optional location ID to retrieve state from. By default, it will retrieve from the current location.
         :return: The JSON value for this address, or None if it doesn't exist
         """
-        if timestamp_ms in self.states:
+        if timestamp_ms in self.states and location_id is None:
             if address in self.states[timestamp_ms]:
                 return self.states[timestamp_ms][address]
 
@@ -5586,7 +5687,7 @@ class BotEngine:
         if timestamp_ms is None:
             # Regular state
             r = self._http_get(
-                "/cloud/json/locations/{}/state".format(self.get_location_id()),
+                "/cloud/json/locations/{}/state".format(location_id or self.get_location_id()),
                 params=params,
             )
             j = json.loads(r.text)
@@ -5601,7 +5702,7 @@ class BotEngine:
             # Time-based state
             params["startDate"] = timestamp_ms
             r = self._http_get(
-                "/cloud/json/locations/{}/timeStates".format(self.get_location_id()),
+                "/cloud/json/locations/{}/timeStates".format(location_id or self.get_location_id()),
                 params=params,
             )
             j = json.loads(r.text)
@@ -5665,7 +5766,7 @@ class BotEngine:
                 data=data,
             )
 
-    def get_timeseries_state(self, address, start_timestamp_ms, end_timestamp_ms=None):
+    def get_timeseries_state(self, address, start_timestamp_ms, end_timestamp_ms=None, location_id=None):
         """
         Get a time-series state variable. This loads it from the server every time, and may include multiple time-series records
         ranging from the start_timestamp_ms to the end_timestamp_ms.
@@ -5673,19 +5774,20 @@ class BotEngine:
         :param address: Time-series state variable address to load
         :param start_timestamp_ms: Required start timestamp
         :param end_timestamp_ms: Optional end timestamp
+        :param location_id: Optional location ID to retrieve state from. By default, it will retrieve from the current location.
         :return:
         """
-        params = {"name": address, "startDate": start_timestamp_ms}
+        params = {"name": address, "startDate": int(start_timestamp_ms)}
 
         if end_timestamp_ms is not None:
-            params["endDate"] = end_timestamp_ms
+            params["endDate"] = int(end_timestamp_ms)
         else:
             # The endDate must be set in order to receive a list of values,
             # otherwise only 1 value for the exact start_timestamp_ms will be returned.
             params["endDate"] = self.get_timestamp()
 
         r = self._http_get(
-            "/cloud/json/locations/{}/timeStates".format(self.get_location_id()),
+            "/cloud/json/locations/{}/timeStates".format(location_id or self.get_location_id()),
             params=params,
         )
         j = json.loads(r.text)
@@ -6005,6 +6107,8 @@ class BotEngine:
         update_narrative_timestamp=None,
         admin=False,
         publish_to_partner=None,
+        parent_id=None,
+        parent_narrative_time=None,
     ):
         """
         Narrate some activity
@@ -6023,6 +6127,8 @@ class BotEngine:
         :param update_narrative_timestamp: Specify a narrative timestamp to update an existing record. This is a double-check to make sure we're not overwriting the wrong record.
         :param admin: True to alert an administrator; False (default) to deliver to the end user.
         :param publish_to_partner: Set to False to avoid streaming this narrative to partner clouds (default is always True)
+        :param parent_id: Narrative parent ID
+        :param parent_narrative_time: Narrative parent timestamp
         :return: { "narrativeId": id, "narrativeTime": timestamp_ms } if successful, otherwise None.
         """
         if self.playback:
@@ -6056,6 +6162,11 @@ class BotEngine:
         if narrative_type is not None:
             if self.is_server_version_newer_than(1, 29):
                 narrative["narrativeType"] = narrative_type
+        
+        if parent_id is not None:
+            narrative["parentId"] = parent_id
+        if parent_narrative_time is not None:
+            narrative["parentNarrativeTime"] = parent_narrative_time
 
         target = {}
 
@@ -6166,19 +6277,26 @@ class BotEngine:
     # Open AI
     # ===========================================================================
 
-    def send_request_for_chat_completion(self, key, data, openai_organization_id=None):
+    def send_request_for_chat_completion(self, key, data, openai_organization_id=None, openai_path=None):
         """
         Send asynchronous request to Open AI API to obtain a model response for the given chat conversation.
+        
+        For Chat Completions see https://developers.openai.com/api/docs/guides/migrate-to-responses
+        For Responses see 
         :param key: Key to identify this request
         :param data: Parameters to send to the Open AI API
         :param openai_organization_id: Organization ID to use for the Open AI API. Default is None.
+        :param openai_path: Path index. 0 = Chat Completions; 1 = Responses
         :return: JSON response from Care Daily API
         """
         if self.playback:
             return None
-        params = {"key": key}
-        if openai_organization_id is not None:
-            params["organizationId"] = openai_organization_id
+        params = {
+            "key": key,
+            "openAiOrganization": openai_organization_id,
+            "openAiPath": openai_path,
+        }
+        params = {k: v for k, v in params.items() if v is not None}
         r = self._http_post("/analytic/openai", params=params, data=json.dumps(data))
         j = json.loads(r.text)
         _check_for_errors(j)
@@ -6708,6 +6826,10 @@ class BotEngine:
             self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<request_customer_support() Ticket creation not allowed by domain or oganization")
             return
 
+        if user_id is None:
+            self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<request_customer_support() No user ID specified for ticket creation")
+            return
+
         body = {
             "ticket": {
                 "type": ticket_type,
@@ -6912,41 +7034,6 @@ class BotEngine:
     # ===========================================================================
     # Surveys
     # ===========================================================================
-    def send_survey_notification(self, survey_key, location_id, user_id=None, role=None, send_to_user=None, notification_category=None):
-        """
-        Send a survey notification to a user, role, or notification category.
-
-        :param survey_key: Key of the survey to answer (string)
-        :param location_id: Answer a survey for this location (integer)
-        :param user_id: Answer a survey for specific user (integer, optional)
-        :param role: Answer a survey for users with this role on the location (integer, optional)
-        :param send_to_user: Send the email directly to the user (boolean, optional)
-        :param notification_category: Send the email to organization notification user with this category (integer, optional)
-        :return: Response JSON from server
-        """
-        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">send_survey_notification()")
-        params = {
-            "locationId": location_id,
-            "surveyKey": survey_key
-        }
-        if user_id is not None:
-            params["userId"] = user_id
-        if role is not None:
-            params["role"] = role
-        if send_to_user is not None:
-            params["sendToUser"] = send_to_user
-        if notification_category is not None:
-            params["notificationCategory"] = notification_category
-
-        headers = {"Content-Type": "application/json"}
-        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(f"|send_survey_notification() params={params}")
-
-        r = self._http_post("/cloud/json/surveyNotification", params=params, headers=headers)
-        j = json.loads(r.text)
-
-        _check_for_errors(j)
-        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(f"<send_survey_notification() response={j}")
-        return j
 
     # ===========================================================================
     # Tools
@@ -7114,3 +7201,190 @@ class BotEngine:
             )
 
         return secret
+    def answer_survey_questions(self, location_id, questions_data, status=None, answer_id=None):
+        """
+        Answer survey questions.
+
+        :param location_id: Location ID
+        :param questions_data: Dictionary containing survey questions data ({"questions": [...]})
+        :param status: Change survey response status: 1 - close (integer, optional)
+        :param answer_id: Answer ID (integer, optional)
+        :return: Dictionary containing response
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">answer_survey_questions()")
+        params = {
+            "locationId": location_id
+        }
+        if status is not None:
+            params["status"] = int(status)
+        if answer_id is not None:
+            params["answerId"] = answer_id
+
+        headers = {"Content-Type": "application/json"}
+        r = self._http_put("/cloud/json/surveyQuestions", params=params, headers=headers, data=json.dumps(questions_data))
+        j = json.loads(r.text)
+        _check_for_errors(j)
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(f"<answer_survey_questions() response={j}")
+        return j
+
+    def get_input_user_id(self):
+        """
+        :return: the user ID provided by the input, if any
+        """
+        if "userId" in self.inputs:
+            return self.inputs["userId"]
+
+        return None
+
+    def get_organization_info(self):
+        """
+        :return: organization information from the access block
+        """
+        if self.get_bot_type() == BotEngine.BOT_TYPE_ORGANIZATION:
+            return self.inputs.get("organization", None)
+        return self.get_location_info().get("location", {}).get("organization", None)
+
+    def get_organizations(self):
+        """
+        :return: All organizations available to this bot
+        """
+        organizations = []
+        organization = self.get_organization_info()
+        if organization is not None:
+            organizations.append(organization)
+        
+        return organizations
+
+    def get_survey_answers(self, location_id, user_id=None, survey_key=None, status=None, start_date=None, end_date=None):
+        """
+        Get survey answers history.
+
+        :param location_id: Location ID (integer, required)
+        :param user_id: User ID filter (integer, optional)
+        :param survey_key: Survey key filter (string, optional)
+        :param status: Survey answer status filter (integer, optional)
+        :param start_date: Answers start date (string, optional)
+        :param end_date: Answers end date (string, optional)
+        :return: Dictionary containing survey answers
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">get_survey_answers()")
+        params = {"locationId": location_id}
+        if user_id is not None:
+            params["userId"] = user_id
+        if survey_key is not None:
+            params["surveyKey"] = survey_key
+        if status is not None:
+            params["status"] = status
+        if start_date is not None:
+            params["startDate"] = start_date
+        if end_date is not None:
+            params["endDate"] = end_date
+
+        r = self._http_get("/cloud/json/surveyAnswers", params=params)
+        j = json.loads(r.text)
+        _check_for_errors(j)
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(f"<get_survey_answers() response={j}")
+        return j
+
+    def get_survey_questions(self, location_id, answer_id=None):
+        """
+        Get survey questions.
+
+        :param location_id: Location ID
+        :param answer_id: Answer ID
+        :return: Dictionary containing survey questions
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">get_survey_questions()")
+        params = {
+            "locationId": location_id,
+        }
+        if answer_id is not None:
+            params["answerId"] = answer_id
+
+        r = self._http_get("/cloud/json/surveyQuestions", params=params)
+        j = json.loads(r.text)
+        _check_for_errors(j)
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").debug(f"<get_survey_questions() response={j}")
+        return j
+
+    def get_user_id_from_inputs(self):
+        """
+        :return: the user ID from our inputs, if any
+        """
+        if "userId" in self.inputs:
+            return self.inputs["userId"]
+        return None
+
+    def start_answering_survey(self, location_id, survey_key, user_id, send_to_user=None, notification_category=None, answer_id=None, pre_answer_id=None, questions=None, notification_model=None):
+        """
+        Start answering a survey - creates a new survey answer record.
+
+        :param location_id: Location ID (integer, required)
+        :param survey_key: Survey key (string, required)
+        :param user_id: User ID (integer, required)
+        :param send_to_user: Send email directly to user (boolean, optional)
+        :param notification_category: Send email to org notification user with this category (integer, optional)
+        :param answer_id: Continue answering the survey with this answer record (integer, optional)
+        :param pre_answer_id: Copy answers from this answer record (integer, optional)
+        :param questions: List of question answers to pre-populate (list, optional)
+        :param notification_model: Additional notification template parameters (dict, optional)
+        :return: Dictionary containing response with surveyUrl
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">start_answering_survey()")
+        params = {
+            "locationId": location_id,
+            "surveyKey": survey_key,
+            "userId": user_id,
+        }
+        if send_to_user is not None:
+            params["sendToUser"] = str(send_to_user).lower()
+        if notification_category is not None:
+            params["notificationCategory"] = notification_category
+        if answer_id is not None:
+            params["answerId"] = answer_id
+        if pre_answer_id is not None:
+            params["preAnswerId"] = pre_answer_id
+
+        body = {}
+        if questions is not None:
+            char_limit = 1000
+            for question in questions:
+                if "answer" in question and isinstance(question["answer"], str) and len(question["answer"]) > char_limit:
+                    self.get_logger(f"{'botengine'}.{__class__.__name__}").warning(f"Truncating survey question answer to {char_limit} characters: {question['answer']}")
+                    question["answer"] = question["answer"][:char_limit]
+            body["questions"] = questions
+        if notification_model is not None:
+            body["notificationModel"] = notification_model
+
+        headers = {"Content-Type": "application/json"}
+        r = self._http_post("/cloud/json/surveyAnswers", params=params, headers=headers, data=json.dumps(body) if body else None)
+        j = json.loads(r.text)
+        _check_for_errors(j)
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(f"<start_answering_survey() response={j}")
+        return j
+
+    def upload_goicon_document(self, document_content, description, category, timestamp=None, visible_to_residents=None):
+        """
+        Upload a PDF document to a GoIcon resident associated with the bot's location.
+        :param document_content: Binary PDF content (bytes)
+        :param description: Document description (required)
+        :param category: Document category, e.g. "Service Plans" (required)
+        :param timestamp: Document timestamp as epoch milliseconds or ISO-8601 date-time string (optional)
+        :param visible_to_residents: Whether the document is visible to residents in GoIcon (optional)
+        :return:
+        """
+        headers = {"Content-Type": "application/octet-stream"}
+        params = {
+            "description": description,
+            "category": category,
+        }
+        if timestamp is not None:
+            params["timestamp"] = str(timestamp)
+        if visible_to_residents is not None:
+            params["visibleToResidents"] = str(visible_to_residents).lower()
+
+        r = self._http_post(
+            "/analytic/goicon/documents", params=params, data=document_content, headers=headers
+        )
+        j = json.loads(r.text)
+        _check_for_errors(j)
