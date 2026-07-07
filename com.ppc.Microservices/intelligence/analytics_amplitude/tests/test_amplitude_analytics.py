@@ -88,6 +88,6 @@ class TestLocationAnalyticsAmplitudeMicroservice(unittest.TestCase):
         assert len(request_json['events'][-1]['device_id'].split(".")) == 3
         assert request_json['events'][-1]['time'] == timestamp
         assert request_json['events'][-1]['event_type'] == 'test'
-        assert request_json['events'][-1]['event_properties'] == {'test': 'test', 'locationId': 0, 'organizationId': 0}
+        assert request_json['events'][-1]['event_properties'] == {'test': 'test', 'locationId': 0, 'organizationId': 1}
 
         

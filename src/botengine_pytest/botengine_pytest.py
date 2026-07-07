@@ -151,6 +151,12 @@ class BotEnginePyTest:
     # High-frequency 'journal' entries for real-time CRITICAL exec-level communications to humans
     NARRATIVE_TYPE_INSIGHT = 5
 
+    # Low-frequency 'support' entries for support-related communications for cloud integrations (server driven)
+    NARRATIVE_TYPE_SUPPORT = 6
+
+    # Low-frequency 'safety' entries for safety-related communications to humans
+    NARRATIVE_TYPE_SAFETY = 7
+
     # Alert Categories
     ALERT_CATAGORY_NONE = 0
     ALERT_CATEGORY_LIVE_HERE = 1
@@ -183,11 +189,15 @@ class BotEnginePyTest:
 
     # Data request types
     DATA_REQUEST_TYPE_PARAMETERS = 1
-    DATA_REQUEST_TYPE_ACTIVITIES = 2
+    DATA_REQUEST_TYPE_DEVICE_ACTIVITIES = 2
     DATA_REQUEST_TYPE_LOCATIONS = 3
     DATA_REQUEST_TYPE_MODES = 4
     DATA_REQUEST_TYPE_NARRATIVES = 5
     DATA_REQUEST_TYPE_DEVICES = 6
+    DATA_REQUEST_TYPE_DATA_STREAMS_HISTORY = 7
+    DATA_REQUEST_TYPE_ENERGY_USAGE = 8
+    DATA_REQUEST_TYPE_DEVICE_ALERTS_HISTORY = 9
+    DATA_REQUEST_TYPE_LOCATION_TIME_STATES = 10
 
     BOT_TYPE_LOCATION = 0
     BOT_TYPE_ORGANIZATION = 1
@@ -234,6 +244,9 @@ class BotEnginePyTest:
         self.customer_support_body = None
         self.customer_support_comments = []
 
+        # List of the user's services dictionaries
+        self.services = [{"serviceName": "Family"}]
+
         # Execution time should be consistent
         # Set by default to June 1st, 2023 12:00 PM PST
         self.time_ms = 1685646000000
@@ -249,6 +262,9 @@ class BotEnginePyTest:
         self.deleted_device_tags = []
         self.deleted_location_tags = []
         self.deleted_file_tags = []
+
+        # GoIcon documents
+        self.goicon_documents = []
 
         # Professional monitoring
         self.has_pro_monitoring = True
@@ -601,6 +617,15 @@ class BotEnginePyTest:
         """
         return self.inputs.get("key", None)
 
+    def get_input_user_id(self):
+        """
+        :return: the user ID provided by the input, if any
+        """
+        if "userId" in self.inputs:
+            return self.inputs["userId"]
+
+        return None
+
     def get_location_block(self):
         """Return the location access block from our inputs, if any"""
         access_block = self.get_access_block()
@@ -640,6 +665,30 @@ class BotEnginePyTest:
             "trigger": True,
         }
 
+    def get_organization_block(self):
+        """
+        :return: the organization block from our inputs, if any
+         Example organization block:
+         {
+            "id": 123,
+            "name": "Test Organization",
+            "signupCode": "testorg",
+            "countryCode": "1"
+         }
+        """
+        if "organization" in self.inputs:
+            return self.inputs["organization"]
+        if self.get_bot_type() == BotEnginePyTest.BOT_TYPE_ORGANIZATION:
+            return {
+                    "organizationId": 1,
+                    "organizationName": "Test Organization",
+                    "domainName": "pytest",
+                    "brand": "caredaily",
+                    "parentId": 0,
+                    "features": "b,g,m,n,p",
+                }
+        return None
+        
     def get_messages_block(self):
         """
         :return: the messages block from our inputs, if any
@@ -650,10 +699,36 @@ class BotEnginePyTest:
 
     def get_survey_block(self):
         """
+        Example survey block:
+        {
+            "endTime": 1768946579000,
+            "questions": [
+                {
+                "answer": "5",
+                "answerTime": 1768946579000,
+                "question": "I actively work to maintain or improve my cognitive health",
+                "questionKey": "cognitive_health_work",
+                "responseOption": "Strongly Agree"
+                },
+                ...
+            ],
+            "startTime": 1768945340000,
+            "surveyKey": "successful_aging_connections"
+        }
         :return: the survey block from our inputs, if any
         """
         if "survey" in self.inputs:
             return self.inputs["survey"]
+        return None
+    
+    def get_user_id_from_inputs(self):
+        """
+        Get the user ID from our inputs, may be provided for some triggers such as surveys.
+        
+        :return: the user ID from our inputs, if any
+        """
+        if "userId" in self.inputs:
+            return self.inputs["userId"]
         return None
 
     def get_bundle_id(self):
@@ -739,24 +814,50 @@ class BotEnginePyTest:
         """
         :return: The organization ID for this bot
         """
-        return 0
+        
+        if self.get_bot_type() == BotEnginePyTest.BOT_TYPE_ORGANIZATION:
+            organization = self.get_organization_info()
+            return organization.get("organizationId", None)
+            
+        info = self.get_location_info()
+        if "location" in info:
+            if "organizationId" in info["location"]:
+                return int(info["location"]["organizationId"])
+
+        return 1
 
     def get_organization_name(self):
         """
         :return: The name of the organization this location belongs to.
         """
-        return "Organization ID {}".format(self.get_organization_id())
+        organization = self.get_organization_info()
+        if organization is not None:
+            return organization.get("organizationName", f"Organization ID {self.get_organization_id()}")
+        
+        return "BotEngine PyTest Organization"
 
     def get_organization_signup_code(self):
         """
         :return: The sign-up code (short domain name) of the organization this location belongs to. Or None if we don't have it for some reason.
         """
+        organization = self.get_organization_info()
+        if organization is not None:
+            return organization.get("domainName", None)
+
         return "pytest"
 
     def get_country_code(self):
         """
         :return: The country code of the location.
         """
+        info = self.get_location_info()
+        if "location" in info:
+            if (
+                "country" in info["location"]
+                and "countryCode" in info["location"]["country"]
+            ):
+                return info["location"]["country"]["countryCode"]
+
         return "1"
 
     def get_location_info(self, sub_type=LOCATION_SUB_TYPE_ALL):
@@ -784,6 +885,25 @@ class BotEnginePyTest:
         else:
             locations.append(self.get_location_block())
         return locations
+    
+    def get_organizations(self):
+        """
+        :return: All organizations available to this bot
+        """
+        organizations = []
+        organization = self.get_organization_info()
+        if organization is not None:
+            organizations.append(organization)
+        
+        return organizations
+
+    def get_organization_info(self):
+        """
+        :return: organization information from the organization block
+        """
+        if self.get_bot_type() == BotEnginePyTest.BOT_TYPE_ORGANIZATION:
+            return self.get_organization_block()
+        return self.get_location_info().get("location", {}).get("organization", None)
 
     def get_user_id(self):
         """
@@ -1441,6 +1561,28 @@ class BotEnginePyTest:
         )
         pass
 
+    def upload_goicon_document(self, document_content, description, category, timestamp=None, visible_to_residents=None):
+        """
+        Upload a PDF document to a GoIcon resident associated with the bot's location.
+        :param document_content: Binary PDF content (bytes)
+        :param description: Document description (required)
+        :param category: Document category, e.g. "Service Plans" (required)
+        :param timestamp: Document timestamp as epoch milliseconds or ISO-8601 date-time string (optional)
+        :param visible_to_residents: Whether the document is visible to residents in GoIcon (optional)
+        :return:
+        """
+        self.get_logger(f"{__name__}.{__class__.__name__}").info(
+            ">upload_goicon_document(): description={}; category={}; timestamp={}; visible_to_residents={}".format(
+                description, category, timestamp, visible_to_residents
+            )
+        )
+        self.goicon_documents.append({
+            "description": description,
+            "category": category,
+            "timestamp": timestamp,
+            "visible_to_residents": visible_to_residents,
+        })
+
     def email_admins(
         self,
         email_subject=None,
@@ -1517,13 +1659,16 @@ class BotEnginePyTest:
     # ===========================================================================
     # Device Properties
     # ===========================================================================
-    def set_device_property(self, device_id, name, value, index=None):
+    def set_device_property(self, device_id, location_id, name, value, index=None):
         """
         Set a single device property from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-activation-info/set-device-properties
 
         :param device_id: Device ID
-        :param properties: Device properties {"property": [{"name":"size", "value":"10"}, {xxx}]}
+        :param location_id: Location ID
+        :param name: Property name
+        :param value: Property value
+        :param index: Optional index for the property if there are multiple with the same name
         """
         property = {"name": name, "value": value}
 
@@ -1535,12 +1680,13 @@ class BotEnginePyTest:
 
         self.device_properties[device_id].append(property)
 
-    def get_device_property(self, device_id, name=None, index=None):
+    def get_device_property(self, device_id, location_id, name=None, index=None):
         """
         Get device properties from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-properties/get-device-properties
 
         :param device_id: Device ID
+        :param location_id: Location ID
         :param name: Optional name to search for
         :param index: Optional index to search for
         """
@@ -1558,13 +1704,15 @@ class BotEnginePyTest:
 
         return []
 
-    def delete_device_property(self, device_id, name, index=None):
+    def delete_device_property(self, device_id, location_id, name, index=None):
         """
         Delete device properties from your location
         https://iotapps.docs.apiary.io/#reference/devices/device-properties/get-device-properties
 
         :param device_id: Device ID
-        :param property_name: Property name
+        :param location_id: Location ID
+        :param name: Optional name to search for
+        :param index: Optional index to search for
         """
         if device_id in self.device_properties:
             for i, p in enumerate(self.device_properties[device_id]):
@@ -2436,49 +2584,51 @@ class BotEnginePyTest:
                             self.states[location_id][address].update(json_content)
         self.get_logger(f"{__name__}.{__class__.__name__}").debug("<set_state()")
 
-    def get_state(self, address, timestamp_ms=None):
+    def get_state(self, address, timestamp_ms=None, location_id=None):
         """
         Get UI content by address. If a timestamp is provided, time-series states will return exactly 1 value
         at the exact given timestamp_ms.
 
         :param address: Address to retrieve information from
         :param timestamp_ms: Optional timestamp for time-based state variables
+        :param location_id: Optional location_id to retrieve state for. Default is current location.
         :return: The JSON value for this address, or None if it doesn't exist
         """
         self.get_logger(f"{__name__}.{__class__.__name__}").debug(
             ">get_state() address={} timestamp_ms={}".format(address, timestamp_ms)
         )
-        if self.get_location_id() not in self.states:
+        location_id = location_id if location_id is not None else self.get_location_id()
+        if location_id not in self.states:
             self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                 "<get_state() (no state for location)"
             )
             return None
         state = None
-        if timestamp_ms in self.states[self.get_location_id()]:
-            if address in self.states[self.get_location_id()][timestamp_ms]:
+        if timestamp_ms in self.states[location_id]:
+            if address in self.states[location_id][timestamp_ms]:
                 self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                     "|get_state() Found timeseries state"
                 )
-                state = self.states[self.get_location_id()][timestamp_ms][address]
+                state = self.states[location_id][timestamp_ms][address]
 
         else:
             self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                 "|get_state() Initialize timeseries state"
             )
-            self.states[self.get_location_id()][timestamp_ms] = {}
+            self.states[location_id][timestamp_ms] = {}
 
         if state is None:
             if timestamp_ms is not None:
-                if address in self.states[self.get_location_id()][timestamp_ms]:
+                if address in self.states[location_id][timestamp_ms]:
                     self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                         "|get_state() Found timeseries state"
                     )
-                    state = self.states[self.get_location_id()][timestamp_ms][address]
-            elif address in self.states[self.get_location_id()]:
+                    state = self.states[location_id][timestamp_ms][address]
+            elif address in self.states[location_id]:
                 self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                     "|get_state() Found state"
                 )
-                state = self.states[self.get_location_id()][address]
+                state = self.states[location_id][address]
         # For time-series queries with no data, return None so callers can detect absence
         if timestamp_ms is not None and state is None:
             self.get_logger(f"{__name__}.{__class__.__name__}").debug("<get_state() (no timeseries data)")
@@ -2505,7 +2655,7 @@ class BotEnginePyTest:
         """
         return
 
-    def get_timeseries_state(self, address, start_timestamp_ms, end_timestamp_ms=None):
+    def get_timeseries_state(self, address, start_timestamp_ms, end_timestamp_ms=None, location_id=None):
         """
         Get a time-series state variable. This loads it from the server every time, and may include multiple time-series records
         ranging from the start_timestamp_ms to the end_timestamp_ms.
@@ -2513,6 +2663,7 @@ class BotEnginePyTest:
         :param address: Time-series state variable address to load
         :param start_timestamp_ms: Required start timestamp
         :param end_timestamp_ms: Optional end timestamp
+        :param location_id: Optional location_id to retrieve state for. Default is current location.
         :return:
         """
         self.get_logger(f"{__name__}.{__class__.__name__}").info(
@@ -2520,22 +2671,23 @@ class BotEnginePyTest:
                 address, start_timestamp_ms, end_timestamp_ms
             )
         )
-        if self.get_location_id() not in self.states:
+        location_id = location_id if location_id is not None else self.get_location_id()
+        if location_id not in self.states:
             self.get_logger(f"{__name__}.{__class__.__name__}").debug(
                 "get_timeseries_state: No states for location"
             )
             return {}
         self.get_logger(f"{__name__}.{__class__.__name__}").info(
-            "get_timeseries_state: timestamps: {}".format(self.states[self.get_location_id()].keys())
+            "get_timeseries_state: timestamps: {}".format(self.states[location_id].keys())
         )
 
         states = {}
-        for timestamp_ms in [key for key in self.states[self.get_location_id()].keys() if isinstance(key, int)]:
+        for timestamp_ms in [key for key in self.states[location_id].keys() if isinstance(key, int)]:
             if end_timestamp_ms is None:
                 end_timestamp_ms = self.get_timestamp()
             if start_timestamp_ms <= timestamp_ms <= end_timestamp_ms:
-                if address in self.states[self.get_location_id()][timestamp_ms]:
-                    states[timestamp_ms] = self.states[self.get_location_id()][timestamp_ms][address]
+                if address in self.states[location_id][timestamp_ms]:
+                    states[timestamp_ms] = self.states[location_id][timestamp_ms][address]
 
         return states
 
@@ -2629,6 +2781,8 @@ class BotEnginePyTest:
         update_narrative_timestamp=None,
         admin=False,
         publish_to_partner=None,
+        parent_id=None,
+        parent_narrative_time=None,
     ):
         # if self.playback:
         #     return None
@@ -2661,6 +2815,11 @@ class BotEnginePyTest:
         if narrative_type is not None:
             # if self.is_server_version_newer_than(1, 29):
             narrative["narrativeType"] = narrative_type
+        
+        if parent_id is not None:
+            narrative["parentId"] = parent_id
+        if parent_narrative_time is not None:
+            narrative["parentNarrativeTime"] = parent_narrative_time
 
         target = {}
 
@@ -2750,19 +2909,20 @@ class BotEnginePyTest:
     # Open AI
     # ===========================================================================
 
-    def send_request_for_chat_completion(self, key, data, openai_organization_id=None):
+    def send_request_for_chat_completion(self, key, data, openai_organization_id=None, openai_path=None):
         """
         Send asynchronous request to Open AI API to obtain a model response for the given chat conversation.
         :param key: Key to identify this request
         :param data: Parameters to send to the Open AI API
         :param openai_organization_id: Organization ID to use for the Open AI API. Default is None.
+        :param openai_path: Path index. 0 = Chat Completions; 1 = Responses
         :return: JSON response from Care Daily API
         """
         if key is None:
             raise ValueError("send_request_for_chat_completion() key cannot be None")
-        if 0 == len(data.get("messages", [])):
+        if 0 == len(data.get("messages", [])) and data.get("input") is None:
             raise ValueError(
-                "send_request_for_chat_completion() messages cannot be empty"
+                "send_request_for_chat_completion() messages or input cannot be empty"
             )
         return {}
 
@@ -2959,26 +3119,70 @@ class BotEnginePyTest:
         )
         return {}
 
-    
     # ===========================================================================
     # Surveys
     # ===========================================================================
-    def send_survey_notification(self, survey_key, location_id, user_id=None, role=None, send_to_user=None, notification_category=None):
+    def get_survey_answers(self, location_id, user_id=None, survey_key=None, status=None, start_date=None, end_date=None):
         """
-        Send a survey notification to a user, role, or notification category.
+        Get survey answers history.
 
-        :param survey_key: Key of the survey to answer (string)
-        :param location_id: Answer a survey for this location (integer)
-        :param user_id: Answer a survey for specific user (integer, optional)
-        :param role: Answer a survey for users with this role on the location (integer, optional)
-        :param send_to_user: Send the email directly to the user (boolean, optional)
-        :param notification_category: Send the email to organization notification user with this category (integer, optional)
-        :return: Response JSON from server
+        :param location_id: Location ID (integer, required)
+        :param user_id: User ID filter (integer, optional)
+        :param survey_key: Survey key filter (string, optional)
+        :param status: Survey answer status filter (integer, optional)
+        :param start_date: Answers start date (string, optional)
+        :param end_date: Answers end date (string, optional)
+        :return: Dictionary containing survey answers
         """
-        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">send_survey_notification()")
-        
-        self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<send_survey_notification()")
-        return {}
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">get_survey_answers()")
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<get_survey_answers()")
+        return {"resultCode": 0, "answers": []}
+
+    def start_answering_survey(self, location_id, survey_key, user_id, send_to_user=None, notification_category=None, answer_id=None, pre_answer_id=None, questions=None, notification_model=None):
+        """
+        Start answering a survey - creates a new survey answer record.
+
+        :param location_id: Location ID (integer, required)
+        :param survey_key: Survey key (string, required)
+        :param user_id: User ID (integer, required)
+        :param send_to_user: Send email directly to user (boolean, optional)
+        :param notification_category: Send email to org notification user with this category (integer, optional)
+        :param answer_id: Continue answering the survey with this answer record (integer, optional)
+        :param pre_answer_id: Copy answers from this answer record (integer, optional)
+        :param questions: List of question answers to pre-populate (list, optional)
+        :param notification_model: Additional notification template parameters (dict, optional)
+        :return: Dictionary containing response with surveyUrl
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">start_answering_survey()")
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<start_answering_survey()")
+        return {"resultCode": 0, "surveyUrl": ""}
+
+    def get_survey_questions(self, location_id, answer_id=None):
+        """
+        Get survey questions.
+
+        :param location_id: Location ID when a user or bot is authenticated (integer)
+        :param answer_id: Answer ID when a user or bot is authenticated (integer, optional)
+        :return: Dictionary containing survey questions
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">get_survey_questions()")
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<get_survey_questions()")
+        return {"resultCode": 0, "survey": {}}
+
+    def answer_survey_questions(self, location_id, questions_data, status=None, answer_id=None):
+        """
+        Answer survey questions.
+
+        :param location_id: Location ID when a user or bot is authenticated (integer)
+        :param questions_data: Dictionary containing survey questions data
+        :param status: Change survey response status: 1 - close (integer, optional)
+        :param answer_id: Answer ID when a user or bot is authenticated (integer, optional)
+        :return: Dictionary containing response
+        """
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info(">answer_survey_questions()")
+        self.get_logger(f"{'botengine'}.{__class__.__name__}").info("<answer_survey_questions()")
+        return {"resultCode": 0}
+
 
     # ============================================================================
     # Professional monitoring
@@ -3084,7 +3288,7 @@ class BotEnginePyTest:
         self,
         destination_attachment_array,
         filename,
-        base64_content,
+        content,
         content_type,
         content_id,
     ):
@@ -3092,7 +3296,7 @@ class BotEnginePyTest:
 
         :params destination_attachment_array: Destination array of attachments. Pass in [] if you are starting a new list of attachments.
         :params filename: Filename of the file, for example, "imageName.jpg"
-        :params base64_content: Base64-encoded binary image content
+        :params content: Base64-encoded binary image content
         :params content_type: Content type of the file, for example "image/jpeg"
         :params content_id: Unique ID for the content, for example "inlineImageId". The email can reference this content with <img src="cid:inlineImageId">.
 
@@ -3100,7 +3304,7 @@ class BotEnginePyTest:
         """
         attachment = {
             "name": filename,
-            "content": base64_content,
+            "content": content,
             "contentType": content_type,
             "contentId": content_id,
         }
@@ -3138,31 +3342,58 @@ class BotEnginePyTest:
         param_name_list=None,
         reference=None,
         index=None,
-        ordered=1,
+        search_by=None,
+        location_tags=None,
+        device_tags=None,
+        device_types=None,
+        names=None,
+        aggregation=None,
+        ordered=None,
+        compression=None,
     ):
         """
-        Selecting a large amount of data from the database can take a significant amount of time and impact server
-        performance. To avoid this long waiting period while executing bots, a bot can submit a request for all the
-        data it wants from this location asynchronously. The server gathers all the data on its own time, and then
-        triggers the bot with trigger 2048. Your bot must include trigger 2048 to receive the trigger.
+        Selecting large amount of data from the database can take significant time. To avoid this long waiting 
+        period a bot can submit requests for all data to the server asynchronously. When the requests will be 
+        completed, the bot will be triggered with the trigger 2048 "Data Request".
 
-        Selected data becomes available as a file in CSV format, compressed by LZ4, and stored for one day.
-        The bot receives direct access to this file.
+        Selected data will be uploaded to S3 in CSV format (compressed) and stored for one day. The bot will 
+        receive access to it.
 
         You can call this multiple times to extract data out of multiple devices. The request will be queued up and
         the complete set of requests will be flushed at the end of this bot execution.
 
         :param type: DATA_REQUEST_TYPE_*, default (1) is key/value device parameters
-        :param device_id: Device ID to download historical data from
-        :param oldest_timestamp_ms: Oldest timestamp in milliseconds
-        :param newest_timestamp_ms: Newest timestamp in milliseconds
-        :param param_name_list: List of parameter names to download
+        :param device_id: Device ID to download historical data from. Required for types 1,2,8,9
+        :param oldest_timestamp_ms: Oldest timestamp in milliseconds. Required for types 1,2,5,7,8,9,10
+        :param newest_timestamp_ms: Newest timestamp in milliseconds. Required for types 1,2,5,7,8,9,10
+        :param param_name_list: List of parameter names to download. Required for type 1
         :param reference: Reference so when this returns we know who it's for
-        :param index: Index to download when parameters are available with multiple indices
-        :param ordered: 1=Ascending (default); -1=Descending.
+        :param index: Index to download when parameters are available with multiple indices. Required for type 1
+        :param search_by: Search string optional for data type 3. Use '*' for wildcard.
+        :param location_tags: Location search tags optional for data type 3
+        :param device_tags: Device search tags optional for data type 3
+        :param device_types: Device search types optional for data types 3,6
+        :param names: Location state names required for the data type 10
+        :param aggregation: Data aggregation by: 0 = None; 1 = Hours; 2 = Days; 3 = Months; 4 = 7-day weeks; 5 = 5-day weeks
+            required for data type 8
+        :param ordered: 1=Ascending (default); -1=Descending. Optional for data types 1,2,4,5,9
+        :param compression: Data compression. 0 = LZ4, default; 1 = ZIP; 2 = none
         """
         self.get_logger(f"{__name__}.{__class__.__name__}").warning(
             "WARNING: Attempted to request_data(), but we can't do anything here."
+        )
+
+    def async_execute_again_in_n_seconds(self, seconds):
+        """
+        Execute this bot again in N seconds, without an external trigger. This is
+        useful for transitioning from an asynchronous back to synchronous execution
+        without waiting for external triggers or dependencies.
+        :param seconds: Seconds from now to execute again
+        """
+        self.get_logger(f"{__name__}.{__class__.__name__}").info(
+            "async_execute_again_in_n_seconds() {} seconds (no-op in pytest)".format(
+                seconds
+            )
         )
 
     def get_user_info(self):
