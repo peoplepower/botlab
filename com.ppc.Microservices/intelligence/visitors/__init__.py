@@ -1,1 +1,0 @@
-# Visitors microservice package
