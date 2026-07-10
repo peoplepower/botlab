@@ -4,8 +4,7 @@
 
   # Share microservices across multiple bots by copying the target end-directory into the local /intelligence directory
   "microservices": [
-    "org.ppc.Microservices/intelligence/organization_settings",
-    "org.ppc.Microservices/intelligence/billing_per_sub"
+    "org.ppc.Microservices/intelligence/organization_settings"
   ],
 
   # Safely delete these microservice packages from the service, without resetting live bot instances

@@ -89,6 +89,60 @@ TAR = True
 DEFAULT_START_KEY_TIMEOUT_S = 3
 
 # ===============================================================================
+# Playback support
+# These defaults are overridden at runtime by the playback runner (botlab-cli
+# src/botlab/playback.py), which injects its own state onto this module.
+# ===============================================================================
+
+# Current playback timestamp in milliseconds
+playback_timestamp_ms = 0
+
+# Playback timezone string
+playback_timezone = None
+
+# Playback tags { type: { id: { tag: {...} } } }
+playback_tags = {}
+
+# Playback questions { key_identifier: question_json }
+playback_questions = {}
+
+
+def playback_get_tags(tag_type=None, tag_id=None, user_id=None):
+    global playback_tags
+    import copy
+
+    lookup_tags = copy.deepcopy(playback_tags)
+    return_tags = []
+
+    def _emit(t_type, t_id, t_id_bucket):
+        for tag, meta in t_id_bucket.items():
+            return_tags.append({
+                "tag": tag,
+                "type": t_type,
+                "id": t_id,
+                **meta,
+            })
+
+    if tag_type is not None:
+        type_bucket = lookup_tags.get(tag_type, {})
+        if tag_id is not None:
+            _emit(tag_type, tag_id, type_bucket.get(tag_id, {}))
+        else:
+            for t_id, t_id_bucket in type_bucket.items():
+                _emit(tag_type, t_id, t_id_bucket)
+    elif tag_id is not None:
+        for t_type, type_bucket in lookup_tags.items():
+            if tag_id in type_bucket:
+                _emit(t_type, tag_id, type_bucket[tag_id])
+    else:
+        for t_type, type_bucket in lookup_tags.items():
+            for t_id, t_id_bucket in type_bucket.items():
+                _emit(t_type, t_id, t_id_bucket)
+
+    return return_tags
+
+
+# ===============================================================================
 # Logger Methods
 # ===============================================================================
 
@@ -4932,7 +4986,9 @@ class BotEngine:
         self.questions_to_ask[question.key_identifier] = question
         if self.playback:
             global playback_questions
-            playback_questions[question.key_identifier] = question._form_json_question()
+            playback_questions[question.key_identifier] = question._form_json_question(
+                logger=self.get_logger(f"{'question'}.Question")
+            )
 
     def delete_question(self, question):
         """
