@@ -1,6 +1,9 @@
 {
   "version": {
+    # Version of the bot. This is used to determine if the bot has been updated and needs to be reloaded.
     "version": "1.0.0",
+
+    # ML dictionary of user facing information about what is new in this version of the bot.
     "whatsnew": {
         "en": "Creation"
     },
@@ -14,6 +17,92 @@
     "runtime": 7,
 
     # Maximum time this bot is allowed to run, in seconds (maximum is 300 seconds)
-    "timeout": 60
+    "timeout": 60,
+
+    # TRIGGER
+    # Describe when this bot should trigger and execute. Add the trigger IDs together to combine triggers.
+    # For example, to trigger off of both a Schedule (1) and a Device Measurement (8): 1 + 8 ==math==> "trigger": 9
+    #
+    # 1 = Schedule (based off a cron schedule inside this runtime.json file)
+    # 2 = Switching modes (home / away / etc.)
+    # 4 = Device alert
+    # 8 = Device measurements or state change
+    # 16 = Question answered by the user
+    # 32 = New device file (like a video or picture)
+    # 64 = Reserved for timers
+    # 128 = Device configuration or metadata was updated
+    # 256 = Data Stream Message received,
+    # 512 = Survey answered,
+    # 1024 = Location configuration, triggered when a user or space is added or remove from the location,
+    # 2048 = Data request, triggered in response to botengine.request_measurements_asynchronously(..)
+    "trigger": 0,
+
+    # DEVICE TYPES
+    # For trigger types 4 (alerts), 8 (measurements), and 128 (configurations), we must specify which device types
+    # we want to interact with and how. When bots are attached to users' accounts, they automatically connect with
+    # every device in the user's account that match these criteria.
+    #
+    # Use this command in your terminal to discover device types:
+    #   botengine --device_types
+    #
+    # Attributes:
+    #   * "id" = device type ID to interact with
+    #   * "trigger" = true to trigger off devices of this type
+    #   * "read" = true to read measurements from devices of this type
+    #   * "control" = true to send commands to devices of this type
+    #   * "reason" = Message to the end user about why they should let your bot access this device. You can specify multiple languages.
+    "deviceTypes": [],
+
+    # DATA STREAMS
+    # This dataStreams block defines a list of data stream addresses that are allowed to trigger this bot.
+    # Data stream messages can be passed around internally between microservices within the bot without
+    # including their addresses on this list, but your bot cannot receive any data stream messages from
+    # other authorized bots, apps, or clouds without opening a port for each address we want to listen to here.
+    "dataStreams": [],
+
+    # ACCESS
+    # This access block defines data sources the bot should interact with in the user's account.
+    # By default, the bot will access everything it requests. Users can opt-out and manage their permissions.
+    #
+    # Attributes:
+    #   * "category":
+    #     1 = This bot should access the locations
+    #     2 = This bot should access the device files
+    #     3 = This bot will call for help with Professional Monitoring Services
+    #     4 = [Reserved] Devices in device types
+    #     5 = [Reserved] Challenges
+    #     6 = This bot wants to manage the user's if-then Rules
+    #
+    #   * "trigger" = true to trigger off of this category (valid for categories 1 and 2)
+    #   * "read" = read from this category (valid for all categories)
+    #   * "control" = send commands to this category (change modes, call for help, modify a rule)
+    "access": [],
+
+    # COMMUNICATIONS
+    # Bots request permission to communicate over specific channels with different people and groups. Users can
+    # opt-out of communications.
+    #
+    # Categories
+    #   0 = Location Users
+    #   1 = Specific Address
+    #   2 = Organization Users
+    #
+    # Communication types
+    #   email - Email notifications
+    #   push - Push notifications to phones signed into your account
+    #   sms - SMS message to designated phone numbers or groups
+    #   msg - in-app messaging
+    "communications": [],
+
+    # Notifications
+    # Bots describe notification groups to enable sending specific types of notifications to select individuals.
+    #
+    # Notification group attributes:
+    #   * "notificationId" = (int) Unique ID for this notification group
+    #   * "title" = (dict) ML dictionary of titles for this notification group
+    #   * "description" = (dict) ML dictionary of descriptions for this notification group
+    #   * "serviceName" = (str) Service name for this notification group
+    #   * "exampleObjectName" = (str) Example object name for this notification group
+    "notifications": []
   }
 }
