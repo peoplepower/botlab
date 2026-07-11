@@ -88,83 +88,10 @@ TAR = True
 # Default configurable bot start key timeout on the server in seconds
 DEFAULT_START_KEY_TIMEOUT_S = 3
 
-# ===============================================================================
-# Playback support
-# These defaults are overridden at runtime by the playback runner (botlab-cli
-# src/botlab/playback.py), which injects its own state onto this module.
-# ===============================================================================
-
-# Current playback timestamp in milliseconds
-playback_timestamp_ms = 0
-
-# Playback timezone string
-playback_timezone = None
-
-# Playback tags { type: { id: { tag: {...} } } }
-playback_tags = {}
-
-# Playback questions { key_identifier: question_json }
-playback_questions = {}
-
-
-def playback_get_tags(tag_type=None, tag_id=None, user_id=None):
-    global playback_tags
-    import copy
-
-    lookup_tags = copy.deepcopy(playback_tags)
-    return_tags = []
-
-    def _emit(t_type, t_id, t_id_bucket):
-        for tag, meta in t_id_bucket.items():
-            return_tags.append({
-                "tag": tag,
-                "type": t_type,
-                "id": t_id,
-                **meta,
-            })
-
-    if tag_type is not None:
-        type_bucket = lookup_tags.get(tag_type, {})
-        if tag_id is not None:
-            _emit(tag_type, tag_id, type_bucket.get(tag_id, {}))
-        else:
-            for t_id, t_id_bucket in type_bucket.items():
-                _emit(tag_type, t_id, t_id_bucket)
-    elif tag_id is not None:
-        for t_type, type_bucket in lookup_tags.items():
-            if tag_id in type_bucket:
-                _emit(t_type, tag_id, type_bucket[tag_id])
-    else:
-        for t_type, type_bucket in lookup_tags.items():
-            for t_id, t_id_bucket in type_bucket.items():
-                _emit(t_type, t_id, t_id_bucket)
-
-    return return_tags
-
 
 # ===============================================================================
 # Logger Methods
 # ===============================================================================
-
-def _playback_logger_timestamp(self, record, datefmt=None):
-    """
-    Logger playback timestamp override
-    :param record:
-    :param datefmt:
-    :return:
-    """
-    global playback_timestamp_ms
-    global playback_timezone
-
-    import pytz
-
-    if playback_timestamp_ms == 0:
-        # Fall back to current time if playback timestamp is not set
-        return datetime.datetime.now()
-
-    return datetime.datetime.fromtimestamp(
-        playback_timestamp_ms / 1000.0, pytz.timezone(playback_timezone)
-    )
 
 def _create_logger(
     name, level, console_mode=False, filename=None, playback=False, session_id=None, bundle_id=None, fmt_string=None
@@ -182,12 +109,6 @@ def _create_logger(
     if _bot_logger_config is None or name == "botengine":
         _bot_logger_config = {"level": level, "console_mode": console_mode, "filename": filename, "playback": playback, "session_id": session_id, "bundle_id": bundle_id, "fmt_string": fmt_string}
     # print(f"Creating logger '{name}' level={level} console={console_mode} file={filename} playback={playback} session_id={session_id} bundle_id={bundle_id}")
-    if playback:
-        logging.Formatter.formatTime = _playback_logger_timestamp
-        if session_id is not None:
-            filename = "playback_{}_log.txt".format(session_id)
-        else:
-            filename = "playback_log.txt"
 
     logger = logging.getLogger(name)
 
@@ -4186,8 +4107,6 @@ class BotEngine:
         :param tag_id: Optional, filter by location ID, device ID, or file ID
         :param user_id: Used with Organizational Apps - confine tags to a specific user
         """
-        if self.playback:
-            return playback_get_tags(tag_type=tag_type, tag_id=tag_id, user_id=user_id)
         params = {}
 
         if user_id is not None:
@@ -4984,11 +4903,6 @@ class BotEngine:
             ">ask_question() key_identifier={}".format(question.key_identifier)
         )
         self.questions_to_ask[question.key_identifier] = question
-        if self.playback:
-            global playback_questions
-            playback_questions[question.key_identifier] = question._form_json_question(
-                logger=self.get_logger(f"{'question'}.Question")
-            )
 
     def delete_question(self, question):
         """
@@ -5014,10 +4928,6 @@ class BotEngine:
                 self.save_variable(QUESTIONS_VARIABLE_NAME, saved_questions)
 
         self.questions_to_delete[question.key_identifier] = question
-        if self.playback:
-            global playback_questions
-            if question.key_identifier in playback_questions:
-                del playback_questions[question.key_identifier]
 
     def flush_questions(self):
         """
