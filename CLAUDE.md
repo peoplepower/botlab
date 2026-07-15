@@ -162,3 +162,21 @@ Constants in `com.ppc.Bot/utilities/utilities.py`:
 ## Lessons
 
 The `com.ppc.Lesson0-*` through `com.ppc.Lesson21-*` directories are progressive tutorial bots (microservices, commands, notifications, data streams, machine learning, questions, analytics, rules, edge computing, etc.). Each contains its own documentation — use them as reference implementations for framework features.
+
+## Knowledge base
+
+This repo is documented in the OKF knowledge bundle at
+<https://github.com/peoplepower/knowledge> (clone it locally if you
+don't have a checkout). If your change alters behavior
+documented there — device types, endpoints, webhooks, device
+parameters, auth, architecture — update the matching concept(s):
+
+1. Find them: `grep -rl 'botlab' <knowledge checkout> --include='*.md'`
+2. Edit the concept, bump its `timestamp`, and adjust its `sources`
+   frontmatter if code paths moved.
+3. Add a dated entry to the bundle's `log.md`.
+4. Run `python3 tools/okf.py index && python3 tools/okf.py validate`
+   from the bundle root.
+
+See `playbooks/keeping-knowledge-fresh.md` in the bundle for the full
+freshness process.
